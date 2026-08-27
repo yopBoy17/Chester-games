@@ -80,6 +80,7 @@ const DIFFICULTY_CONFIG = {
     maximumDecisionDelay: 2,
     maximumAttackReserve: 6,
     upgradeReserve: 25,
+    defenseMargin: 0,
     mistakeChance: 0.3,
     playerPriority: 0,
   },
@@ -88,6 +89,7 @@ const DIFFICULTY_CONFIG = {
     maximumDecisionDelay: 1.25,
     maximumAttackReserve: 4,
     upgradeReserve: 15,
+    defenseMargin: 2,
     mistakeChance: 0,
     playerPriority: 2,
   },
@@ -96,6 +98,7 @@ const DIFFICULTY_CONFIG = {
     maximumDecisionDelay: 0.7,
     maximumAttackReserve: 2,
     upgradeReserve: 10,
+    defenseMargin: 5,
     mistakeChance: 0,
     playerPriority: 6,
   },
@@ -1144,7 +1147,7 @@ function requiredComputerAttackEnergy(target, owner) {
 }
 
 function computerPlanetUpgradeType(planet) {
-  if (planet.type !== "standard") return null;
+  if (planet.type === "defensive") return null;
   const neighbors = connectedPlanets(planet);
   const bordersOpponent = neighbors.some(
     (neighbor) =>
@@ -1159,7 +1162,10 @@ function computerPlanetUpgradeType(planet) {
       neighbor.energy + neighbor.shield >= planet.energy,
   );
 
-  if (bordersOpponent) return "defensive";
+  if (computerThreatLevel(planet, planet.owner) > 0 || bordersOpponent) {
+    return "defensive";
+  }
+  if (planet.type !== "standard") return null;
   if (isBackline || blockedByStrongNeutral) return "economic";
   return null;
 }
@@ -1168,6 +1174,7 @@ function upgradeComputerPlanet(planet, type) {
   const config = DIFFICULTY_CONFIG[settings.difficulty];
   if (
     !type ||
+    planet.type === type ||
     planet.energy < TYPE_CHANGE_COST + config.upgradeReserve
   ) {
     return false;
@@ -1204,6 +1211,39 @@ function computerSupportTarget(source, owner) {
   return null;
 }
 
+function computerThreatLevel(planet, owner) {
+  const config = DIFFICULTY_CONFIG[settings.difficulty];
+  let hostileIncomingEnergy = 0;
+  let friendlyIncomingEnergy = 0;
+
+  for (const particle of particles) {
+    if (particle.target !== planet) continue;
+    if (particle.owner === owner) friendlyIncomingEnergy += particle.amount;
+    else hostileIncomingEnergy += particle.amount;
+  }
+
+  if (hostileIncomingEnergy === 0) return 0;
+
+  return (
+    hostileIncomingEnergy +
+    config.defenseMargin -
+    planet.energy -
+    planet.shield -
+    friendlyIncomingEnergy
+  );
+}
+
+function threatenedComputerNeighbor(source, owner) {
+  return connectedPlanets(source)
+    .filter((planet) => planet.owner === owner)
+    .map((planet) => ({
+      planet,
+      threat: computerThreatLevel(planet, owner),
+    }))
+    .filter((item) => item.threat > 0)
+    .sort((first, second) => second.threat - first.threat)[0]?.planet ?? null;
+}
+
 function updateComputerPlayers(delta) {
   const config = DIFFICULTY_CONFIG[settings.difficulty];
   const readyPlanets = new Set();
@@ -1236,6 +1276,34 @@ function updateComputerPlayers(delta) {
     for (const source of ownedPlanets) {
       const existingRoute = routes.find((route) => route.source === source);
       const plannedUpgrade = computerPlanetUpgradeType(source);
+      const sourceThreat = computerThreatLevel(source, owner);
+      const threatenedNeighbor = threatenedComputerNeighbor(source, owner);
+
+      if (sourceThreat > 0) {
+        routes = routes.filter((route) => route.source !== source);
+        upgradeComputerPlanet(source, "defensive");
+        continue;
+      }
+
+      if (threatenedNeighbor) {
+        routes = routes.filter((route) => route.source !== source);
+        if (source.energy >= 1) {
+          const route = {
+            source,
+            target: threatenedNeighbor,
+            timer: 0,
+            purpose: "defense",
+            repeat: false,
+          };
+          routes.push(route);
+          sendAllEnergy(route);
+        }
+        continue;
+      }
+
+      if (existingRoute?.purpose === "defense") {
+        routes = routes.filter((route) => route !== existingRoute);
+      }
 
       if (
         existingRoute &&
@@ -1300,6 +1368,7 @@ function updateComputerPlayers(delta) {
           target: selectedTarget.planet,
           timer: 0,
           purpose: "attack",
+          repeat: false,
         };
         routes.push(route);
         sendAllEnergy(route);
@@ -1371,6 +1440,7 @@ function update(delta) {
   updateComputerPlayers(delta);
 
   for (const route of routes) {
+    if (route.repeat === false) continue;
     route.timer += delta;
     if (route.timer >= 1) {
       route.timer -= 1;

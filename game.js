@@ -484,6 +484,7 @@ function createGameSnapshot() {
       timer: route.timer,
       purpose: route.purpose,
       repeat: route.repeat,
+      reserve: route.reserve,
     })),
     particles: particles.map((particle) => ({
       sourceId: particle.source.id,
@@ -562,6 +563,7 @@ function restoreGameSnapshot(snapshot) {
       timer: route.timer,
       purpose: route.purpose,
       repeat: route.repeat,
+      reserve: route.reserve,
     }))
     .filter((route) => route.source && route.target);
   particles = (snapshot.particles ?? [])
@@ -1627,14 +1629,18 @@ helpButton.addEventListener("click", () => {
 window.addEventListener("resize", resize);
 
 function sendRouteEnergy(route) {
-  if (route.source.energy < 1 || route.source.owner === "neutral") return;
+  const availableEnergy = Math.max(
+    0,
+    route.source.energy - (route.reserve ?? 0),
+  );
+  if (availableEnergy < 1 || route.source.owner === "neutral") return;
 
   const fraction = route.source.owner === "player"
     ? route.source.sendFraction
     : 1;
   const amount = Math.min(
-    route.source.energy,
-    Math.ceil(route.source.energy * fraction),
+    availableEnergy,
+    Math.ceil(availableEnergy * fraction),
   );
 
   route.source.energy -= amount;
@@ -1885,9 +1891,149 @@ function computerFirstStepToward(source, target, owner) {
   return null;
 }
 
+function computerOwnedDistances(origin, owner) {
+  const distances = new Map([[origin, 0]]);
+  const queue = [origin];
+
+  for (let index = 0; index < queue.length; index += 1) {
+    const planet = queue[index];
+    for (const neighbor of connectedPlanets(planet)) {
+      if (neighbor.owner !== owner || distances.has(neighbor)) continue;
+      distances.set(neighbor, distances.get(planet) + 1);
+      queue.push(neighbor);
+    }
+  }
+
+  return distances;
+}
+
+function createHardComputerPlan(owner) {
+  const candidates = [];
+
+  for (const rally of planets.filter((planet) => planet.owner === owner)) {
+    const distances = computerOwnedDistances(rally, owner);
+    const availableEnergy = [...distances.keys()].reduce(
+      (total, planet) => total + Math.max(0, planet.energy - 3),
+      0,
+    );
+    const income = [...distances.keys()].reduce(
+      (total, planet) =>
+        total + PLANET_TYPES[planet.type].generationMultiplier,
+      0,
+    );
+
+    for (const target of connectedPlanets(rally)) {
+      if (target.owner === owner || target.owner === "neutral") continue;
+
+      const defense = target.energy + target.shield;
+      const opponentBonus = target.owner === "player" ? 40 : 24;
+      const economicBonus = target.type === "economic" ? 12 : 0;
+      const connectivityBonus = connectedPlanets(target).length * 4;
+      const adjacentAttackers = connectedPlanets(target).filter(
+        (planet) => planet.owner === owner,
+      ).length;
+
+      candidates.push({
+        rally,
+        target,
+        score:
+          opponentBonus +
+          economicBonus +
+          connectivityBonus +
+          adjacentAttackers * 8 +
+          Math.min(30, availableEnergy * 0.2 + income * 2) -
+          defense * 1.4,
+      });
+    }
+  }
+
+  candidates.sort((first, second) => second.score - first.score);
+  const choice = candidates[0];
+  if (!choice) return null;
+
+  return {
+    owner,
+    rally: choice.rally,
+    target: choice.target,
+    requiredEnergy: Math.ceil(
+      (choice.target.energy + choice.target.shield) * 1.15 + 6,
+    ),
+    age: 0,
+  };
+}
+
+function hardComputerRequiredEnergy(plan) {
+  const attackers = connectedPlanets(plan.target).filter(
+    (planet) => planet.owner === plan.owner,
+  );
+  const longestTravelTime = attackers.reduce((longest, attacker) => {
+    const distance = Math.hypot(
+      plan.target.x - attacker.x,
+      plan.target.y - attacker.y,
+    );
+    return Math.max(longest, distance / ENERGY_TRAVEL_SPEED);
+  }, 0);
+  const targetGeneration = plan.target.owner === "neutral"
+    ? 0
+    : STANDARD_GENERATION *
+      PLANET_TYPES[plan.target.type].generationMultiplier *
+      settings.speed;
+  let projectedDefense =
+    plan.target.energy +
+    plan.target.shield +
+    targetGeneration * longestTravelTime;
+
+  for (const particle of particles) {
+    if (particle.target !== plan.target) continue;
+    projectedDefense += particle.owner === plan.target.owner
+      ? particle.amount
+      : -particle.amount;
+  }
+
+  return Math.max(1, Math.ceil(projectedDefense + 6));
+}
+
+function launchHardComputerAttack(plan) {
+  const attackers = connectedPlanets(plan.target)
+    .filter(
+      (planet) =>
+        planet.owner === plan.owner &&
+        computerThreatLevel(planet, plan.owner) <= 0 &&
+        planet.energy >= 1,
+    )
+    .sort((first, second) => second.energy - first.energy);
+  const requiredEnergy = hardComputerRequiredEnergy(plan);
+  const selectedAttackers = [];
+  let attackEnergy = 0;
+
+  for (const attacker of attackers) {
+    selectedAttackers.push(attacker);
+    attackEnergy += attacker.energy;
+    if (attackEnergy >= requiredEnergy) break;
+  }
+
+  if (attackEnergy < requiredEnergy) return false;
+
+  for (const source of selectedAttackers) {
+    routes = routes.filter((route) => route.source !== source);
+    const route = {
+      source,
+      target: plan.target,
+      timer: 0,
+      purpose: "attack",
+      repeat: false,
+    };
+    routes.push(route);
+    sendRouteEnergy(route);
+  }
+
+  return true;
+}
+
 function createComputerRallyPlan(owner) {
   const config = DIFFICULTY_CONFIG[settings.difficulty];
   if (config.rallyQuietTime === null) return null;
+  if (settings.difficulty === "hard") return createHardComputerPlan(owner);
 
   const candidates = [];
   for (const rally of planets.filter((planet) => planet.owner === owner)) {
@@ -1928,6 +2074,9 @@ function createComputerRallyPlan(owner) {
 
 function updateComputerPlans(computerOwners, delta) {
   const config = DIFFICULTY_CONFIG[settings.difficulty];
+  const requiredQuietTime = settings.difficulty === "hard"
+    ? 1
+    : config.rallyQuietTime;
 
   for (const owner of computerOwners) {
     const isUnderAttack = particles.some(
@@ -1953,8 +2102,8 @@ function updateComputerPlans(computerOwners, delta) {
 
     if (
       !computerPlans.has(owner) &&
-      config.rallyQuietTime !== null &&
-      quietTime >= config.rallyQuietTime
+      requiredQuietTime !== null &&
+      quietTime >= requiredQuietTime
     ) {
       const newPlan = createComputerRallyPlan(owner);
       if (newPlan) computerPlans.set(owner, newPlan);
@@ -1987,6 +2136,16 @@ function updateComputerPlayers(delta) {
   updateComputerPlans(computerOwners, delta);
 
   for (const owner of computerOwners) {
+    const activePlan = computerPlans.get(owner);
+    if (
+      settings.difficulty === "hard" &&
+      activePlan &&
+      launchHardComputerAttack(activePlan)
+    ) {
+      computerPlans.delete(owner);
+      computerQuietTimers.set(owner, 0);
+    }
+
     const ownedPlanets = planets
       .filter(
         (planet) => planet.owner === owner && readyPlanets.has(planet),
@@ -2026,6 +2185,13 @@ function updateComputerPlayers(delta) {
         routes = routes.filter((route) => route.source !== source);
         const targetDefense = plan.target.energy + plan.target.shield;
         const waitedTooLong = plan.age >= config.rallyMaximumWait;
+        if (settings.difficulty === "hard") {
+          if (waitedTooLong) {
+            computerPlans.delete(owner);
+            computerQuietTimers.set(owner, 0);
+          }
+          continue;
+        }
         const canAttack =
           source.energy >= plan.requiredEnergy ||
           (waitedTooLong && source.energy >= targetDefense + 1);
@@ -2054,9 +2220,20 @@ function updateComputerPlayers(delta) {
           (planet) =>
             planet.owner !== "neutral" && planet.owner !== owner,
         );
-        const rallyStep = bordersOpponent
-          ? null
-          : computerFirstStepToward(source, plan.rally, owner);
+        const attacksPlannedTarget = connectedPlanets(source).includes(
+          plan.target,
+        );
+        if (settings.difficulty === "hard" && attacksPlannedTarget) {
+          routes = routes.filter(
+            (route) =>
+              route.source !== source || route.purpose === "defense",
+          );
+          continue;
+        }
+        const rallyStep =
+          settings.difficulty === "hard" || !bordersOpponent
+            ? computerFirstStepToward(source, plan.rally, owner)
+            : null;
 
         if (rallyStep) {
           const followsPlan =
@@ -2070,6 +2247,8 @@ function updateComputerPlayers(delta) {
                 target: rallyStep,
                 timer: 0,
                 purpose: "rally",
+                reserve:
+                  settings.difficulty === "hard" && bordersOpponent ? 7 : 3,
               };
               routes.push(route);
               sendRouteEnergy(route);
@@ -2426,9 +2605,9 @@ function drawSendFractionMarker(planet) {
 
   const label = planet.sendFraction === 0.5 ? "½" : "¼";
   const radius = planetDisplayRadius(planet);
-  const badgeRadius = Math.max(5.175, radius * 0.28);
-  const x = planet.x - radius * 0.7;
-  const y = planet.y - radius * 0.7;
+  const badgeRadius = Math.max(6.5, radius * 0.36);
+  const x = planet.x - radius * 0.78;
+  const y = planet.y - radius * 0.78;
 
   context.save();
   context.fillStyle = planet.sendFraction === 0.5 ? "#f4b740" : "#c5cad3";

@@ -850,10 +850,9 @@ body {
   gap: 5px;
 }
 
-.planet-panel__send-label {
-  color: #667085;
-  font-size: 12px;
-  font-weight: 600;
+.planet-panel__send::after {
+  height: 14px;
+  content: "";
 }
 
 .planet-panel__send-option {
@@ -969,13 +968,34 @@ body {
     grid-template-columns: repeat(2, 1fr);
   }
 
+  .help-button {
+    top: 12px;
+    left: 12px;
+    width: 36px;
+    height: 36px;
+  }
+
+  .speed-control {
+    top: 8px;
+    left: 58px;
+    width: calc(100vw - 150px);
+  }
+
+  #game-menu-button {
+    top: 12px;
+    right: 12px;
+  }
+
   .planet-panel {
-    align-items: stretch;
-    flex-direction: column;
+    max-width: calc(100% - 16px);
+    padding: 8px;
+    align-items: center;
+    flex-direction: row;
+    gap: 10px;
   }
 
   .planet-panel__actions {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
 
   .help {

@@ -3,12 +3,36 @@ const context = canvas.getContext("2d");
 const gameMenuButton = document.querySelector("#game-menu-button");
 const menuOverlay = document.querySelector("#menu-overlay");
 const startMenu = document.querySelector("#start-menu");
+const loadGameMenu = document.querySelector("#load-game-menu");
+const statisticsMenu = document.querySelector("#statistics-menu");
 const pauseMenu = document.querySelector("#pause-menu");
+const saveGameMenu = document.querySelector("#save-game-menu");
 const victoryMenu = document.querySelector("#victory-menu");
 const defeatMenu = document.querySelector("#defeat-menu");
 const victoryTitle = document.querySelector("#victory-title");
 const startGameButton = document.querySelector("#start-game-button");
+const loadGameButton = document.querySelector("#load-game-button");
+const loadGameBackButton = document.querySelector("#load-game-back-button");
+const statisticsButton = document.querySelector("#statistics-button");
+const statisticsBackButton = document.querySelector("#statistics-back-button");
+const statisticsClearButton = document.querySelector("#statistics-clear-button");
+const statisticsGames = document.querySelector("#statistics-games");
+const statisticsWins = document.querySelector("#statistics-wins");
+const statisticsLosses = document.querySelector("#statistics-losses");
+const statisticsWinRate = document.querySelector("#statistics-win-rate");
+const statisticsCurrentStreak = document.querySelector("#statistics-current-streak");
+const statisticsBestStreak = document.querySelector("#statistics-best-streak");
+const statisticsRobotBattles = document.querySelector("#statistics-robot-battles");
+const statisticsByType = document.querySelector("#statistics-by-type");
+const loadSlotButtons = document.querySelectorAll(
+  "#load-game-menu .save-slot",
+);
+const saveSlotButtons = document.querySelectorAll(
+  "#save-game-menu .save-slot",
+);
 const continueGameButton = document.querySelector("#continue-game-button");
+const saveGameButton = document.querySelector("#save-game-button");
+const saveGameBackButton = document.querySelector("#save-game-back-button");
 const restartGameButton = document.querySelector("#restart-game-button");
 const regenerateGameButton = document.querySelector("#regenerate-game-button");
 const exitToMenuButton = document.querySelector("#exit-to-menu-button");
@@ -30,6 +54,7 @@ const helpButton = document.querySelector("#help-button");
 const helpPanel = document.querySelector("#help-panel");
 const planetPanel = document.querySelector("#planet-panel");
 const planetTypeButtons = document.querySelectorAll("[data-planet-type]");
+const sendFractionButton = document.querySelector("#send-fraction-button");
 
 const PLAYER_COLORS = {
   green: "#22a06b",
@@ -114,6 +139,9 @@ const DIFFICULTY_CONFIG = {
 };
 const SPEED_OPTIONS = [0.1, 0.5, 1, 1.5, 2, 3];
 const SETTINGS_STORAGE_KEY = "planet-flow-settings";
+const STATISTICS_STORAGE_KEY = "planet-flow-statistics";
+const SAVE_SLOTS_STORAGE_KEY = "planet-flow-save-slots";
+const SAVE_SLOT_COUNT = 5;
 const DEFAULT_SETTINGS = {
   mapSize: "medium",
   difficulty: "normal",
@@ -122,6 +150,21 @@ const DEFAULT_SETTINGS = {
   robotBattle: false,
   playerCount: 2,
   playerColor: "blue",
+};
+const DEFAULT_STATISTICS = {
+  gamesPlayed: 0,
+  wins: 0,
+  losses: 0,
+  robotBattles: 0,
+  currentWinStreak: 0,
+  bestWinStreak: 0,
+  byType: {},
+};
+const PLAYER_COLOR_LABELS = {
+  green: "Зелёный",
+  red: "Красный",
+  blue: "Синий",
+  yellow: "Жёлтый",
 };
 
 function loadSettings() {
@@ -141,6 +184,59 @@ function saveSettings() {
   }
 }
 
+function loadStatistics() {
+  try {
+    const savedStatistics = JSON.parse(
+      localStorage.getItem(STATISTICS_STORAGE_KEY) || "{}",
+    );
+    return {
+      ...DEFAULT_STATISTICS,
+      ...savedStatistics,
+      byType:
+        savedStatistics.byType && typeof savedStatistics.byType === "object"
+          ? savedStatistics.byType
+          : {},
+    };
+  } catch {
+    return { ...DEFAULT_STATISTICS, byType: {} };
+  }
+}
+
+function saveStatistics() {
+  try {
+    localStorage.setItem(
+      STATISTICS_STORAGE_KEY,
+      JSON.stringify(statistics),
+    );
+  } catch {
+    // Статистика не должна мешать игре при недоступном хранилище.
+  }
+}
+
+function loadSaveSlots() {
+  try {
+    const storedSlots = JSON.parse(
+      localStorage.getItem(SAVE_SLOTS_STORAGE_KEY) || "[]",
+    );
+    return Array.from(
+      { length: SAVE_SLOT_COUNT },
+      (_, index) => storedSlots[index] ?? null,
+    );
+  } catch {
+    return Array(SAVE_SLOT_COUNT).fill(null);
+  }
+}
+
+function saveSaveSlots() {
+  try {
+    localStorage.setItem(SAVE_SLOTS_STORAGE_KEY, JSON.stringify(saveSlots));
+    return true;
+  } catch {
+    window.alert("Не удалось сохранить игру в localStorage.");
+    return false;
+  }
+}
+
 let planets = [];
 let connections = [];
 let routes = [];
@@ -152,8 +248,12 @@ let pinch = null;
 let selectedPlanet = null;
 let lastTime = performance.now();
 let result = null;
+let statisticsRecorded = false;
 let gameState = "menu";
 let settings = loadSettings();
+let statistics = loadStatistics();
+let saveSlots = loadSaveSlots();
+let currentGameConfiguration = null;
 let selectedMapSize = MAP_SIZE_OPTIONS.includes(settings.mapSize) ? settings.mapSize : "medium";
 settings.mapSize = selectedMapSize;
 if (!DIFFICULTY_OPTIONS.includes(settings.difficulty)) settings.difficulty = "normal";
@@ -227,7 +327,7 @@ function createLevel(regenerate = true) {
       const planet = planets[index];
       const owner = ownerByPlanetIndex.get(index) ?? "neutral";
       const energy = owner === "player"
-        ? 100
+        ? 3
         : owner === "neutral"
           ? neutralStartingEnergy(planet, spawnPoints)
           : 3;
@@ -284,10 +384,333 @@ function createLevel(regenerate = true) {
   activePointers.clear();
   selectPlanet(null);
   result = null;
+  statisticsRecorded = false;
+  currentGameConfiguration = {
+    mode: settings.robotBattle ? "robotBattle" : "regular",
+    mapSize: selectedMapSize,
+    difficulty: settings.difficulty,
+    playerCount: settings.playerCount,
+    mountains: settings.mountains,
+  };
   computerPlans.clear();
   computerQuietTimers.clear();
   camera.zoom = 1;
   centerCameraOn(planets[playerIndex]);
+}
+
+function gameTypeKey(configuration) {
+  return [
+    configuration.mode,
+    configuration.mapSize,
+    configuration.difficulty,
+    configuration.playerCount,
+    configuration.mountains ? "mountains" : "plain",
+  ].join(":");
+}
+
+function recordGameStatistics(outcome) {
+  if (statisticsRecorded || !currentGameConfiguration) return;
+  statisticsRecorded = true;
+
+  const typeKey = gameTypeKey(currentGameConfiguration);
+  const previousTypeStatistics = statistics.byType[typeKey] ?? {
+    ...currentGameConfiguration,
+    gamesPlayed: 0,
+    wins: 0,
+    losses: 0,
+  };
+  const isWin = outcome === "win";
+  const isLoss = outcome === "loss";
+
+  statistics.gamesPlayed += 1;
+  statistics.wins += isWin ? 1 : 0;
+  statistics.losses += isLoss ? 1 : 0;
+  statistics.robotBattles += outcome === "robotBattle" ? 1 : 0;
+
+  if (isWin) {
+    statistics.currentWinStreak += 1;
+    statistics.bestWinStreak = Math.max(
+      statistics.bestWinStreak,
+      statistics.currentWinStreak,
+    );
+  } else if (isLoss) {
+    statistics.currentWinStreak = 0;
+  }
+
+  statistics.byType[typeKey] = {
+    ...previousTypeStatistics,
+    gamesPlayed: previousTypeStatistics.gamesPlayed + 1,
+    wins: previousTypeStatistics.wins + (isWin ? 1 : 0),
+    losses: previousTypeStatistics.losses + (isLoss ? 1 : 0),
+  };
+  saveStatistics();
+}
+
+function finishGame(label, outcome) {
+  if (result) return;
+  result = label;
+  recordGameStatistics(outcome);
+}
+
+function createGameSnapshot() {
+  return {
+    version: 1,
+    savedAt: Date.now(),
+    settings: { ...settings, mapSize: selectedMapSize },
+    currentGameConfiguration: { ...currentGameConfiguration },
+    colors: { ...COLORS },
+    planets: planets.map((planet) => ({
+      id: planet.id,
+      x: planet.x,
+      y: planet.y,
+      radius: planet.radius,
+      owner: planet.owner,
+      energy: planet.energy,
+      type: planet.type,
+      shield: planet.shield,
+      maxShield: planet.maxShield,
+      shieldTimer: planet.shieldTimer,
+      computerDecisionTimer: planet.computerDecisionTimer,
+      displayScale: planet.displayScale,
+      sendFraction: planet.sendFraction,
+    })),
+    connections: connections.map((connection) => ({
+      firstId: connection.first.id,
+      secondId: connection.second.id,
+    })),
+    routes: routes.map((route) => ({
+      sourceId: route.source.id,
+      targetId: route.target.id,
+      timer: route.timer,
+      purpose: route.purpose,
+      repeat: route.repeat,
+    })),
+    particles: particles.map((particle) => ({
+      sourceId: particle.source.id,
+      targetId: particle.target.id,
+      owner: particle.owner,
+      amount: particle.amount,
+      progress: particle.progress,
+    })),
+    captureEffects: captureEffects.map((effect) => ({ ...effect })),
+    camera: { ...camera },
+    currentLevelLayout,
+    computerPlans: [...computerPlans.values()].map((plan) => ({
+      owner: plan.owner,
+      rallyId: plan.rally.id,
+      targetId: plan.target.id,
+      requiredEnergy: plan.requiredEnergy,
+      age: plan.age,
+    })),
+    computerQuietTimers: Object.fromEntries(computerQuietTimers),
+  };
+}
+
+function restoreGameSnapshot(snapshot) {
+  if (snapshot?.version !== 1 || !Array.isArray(snapshot.planets)) {
+    window.alert("Этот слот содержит неподдерживаемое сохранение.");
+    return false;
+  }
+
+  settings = { ...DEFAULT_SETTINGS, ...snapshot.settings };
+  selectedMapSize = MAP_SIZE_OPTIONS.includes(settings.mapSize)
+    ? settings.mapSize
+    : "medium";
+  settings.mapSize = selectedMapSize;
+  if (!DIFFICULTY_OPTIONS.includes(settings.difficulty)) {
+    settings.difficulty = "normal";
+  }
+  if (!SPEED_OPTIONS.includes(settings.speed)) settings.speed = 1;
+  settings.mountains = settings.mountains === true;
+  settings.robotBattle = settings.robotBattle === true;
+  if (![2, 3, 4].includes(settings.playerCount)) settings.playerCount = 2;
+  if (!PLAYER_COLORS[settings.playerColor]) settings.playerColor = "blue";
+
+  Object.assign(COLORS, snapshot.colors ?? {});
+  COLORS.player = snapshot.colors?.player ?? PLAYER_COLORS[settings.playerColor];
+
+  planets = snapshot.planets.map((savedPlanet) => {
+    const planet = createPlanet(
+      savedPlanet.id,
+      savedPlanet.x,
+      savedPlanet.y,
+      savedPlanet.radius ?? PLANET_RADIUS,
+      savedPlanet.owner,
+      savedPlanet.energy,
+      savedPlanet.type,
+    );
+    planet.shield = savedPlanet.shield;
+    planet.maxShield = savedPlanet.maxShield;
+    planet.shieldTimer = savedPlanet.shieldTimer;
+    planet.computerDecisionTimer = savedPlanet.computerDecisionTimer;
+    planet.displayScale = savedPlanet.displayScale ?? 1;
+    planet.sendFraction = savedPlanet.sendFraction ?? 1;
+    return planet;
+  });
+
+  const planetsById = new Map(planets.map((planet) => [planet.id, planet]));
+  connections = (snapshot.connections ?? [])
+    .map((connection) => ({
+      first: planetsById.get(connection.firstId),
+      second: planetsById.get(connection.secondId),
+    }))
+    .filter((connection) => connection.first && connection.second);
+  routes = (snapshot.routes ?? [])
+    .map((route) => ({
+      source: planetsById.get(route.sourceId),
+      target: planetsById.get(route.targetId),
+      timer: route.timer,
+      purpose: route.purpose,
+      repeat: route.repeat,
+    }))
+    .filter((route) => route.source && route.target);
+  particles = (snapshot.particles ?? [])
+    .map((particle) => ({
+      source: planetsById.get(particle.sourceId),
+      target: planetsById.get(particle.targetId),
+      owner: particle.owner,
+      amount: particle.amount,
+      progress: particle.progress,
+    }))
+    .filter((particle) => particle.source && particle.target);
+  captureEffects = (snapshot.captureEffects ?? []).map((effect) => ({
+    ...effect,
+  }));
+
+  computerPlans.clear();
+  for (const savedPlan of snapshot.computerPlans ?? []) {
+    const rally = planetsById.get(savedPlan.rallyId);
+    const target = planetsById.get(savedPlan.targetId);
+    if (!rally || !target) continue;
+    computerPlans.set(savedPlan.owner, {
+      owner: savedPlan.owner,
+      rally,
+      target,
+      requiredEnergy: savedPlan.requiredEnergy,
+      age: savedPlan.age,
+    });
+  }
+  computerQuietTimers.clear();
+  for (const [owner, timer] of Object.entries(
+    snapshot.computerQuietTimers ?? {},
+  )) {
+    computerQuietTimers.set(owner, timer);
+  }
+
+  currentLevelLayout = snapshot.currentLevelLayout ?? null;
+  currentGameConfiguration = snapshot.currentGameConfiguration ?? {
+    mode: settings.robotBattle ? "robotBattle" : "regular",
+    mapSize: selectedMapSize,
+    difficulty: settings.difficulty,
+    playerCount: settings.playerCount,
+    mountains: settings.mountains,
+  };
+  camera.x = snapshot.camera?.x ?? 0;
+  camera.y = snapshot.camera?.y ?? 0;
+  camera.zoom = snapshot.camera?.zoom ?? 1;
+  clampCamera();
+
+  drag = null;
+  pan = null;
+  pinch = null;
+  activePointers.clear();
+  selectPlanet(null);
+  result = null;
+  statisticsRecorded = false;
+  lastTime = performance.now();
+  syncSettingsControls();
+  saveSettings();
+  return true;
+}
+
+function renderSaveSlot(button, snapshot, canSave) {
+  const status = button.querySelector(".save-slot__header strong");
+  const details = button.querySelectorAll(".save-slot__details > span");
+  button.disabled = !canSave && !snapshot;
+  button.classList.toggle("is-filled", Boolean(snapshot));
+
+  if (!snapshot) {
+    status.textContent = "Пусто";
+    details[0].replaceChildren();
+    const color = document.createElement("i");
+    color.className = "save-slot__color";
+    details[0].append(color, "Цвет: —");
+    details[1].textContent = "Карта: —";
+    details[2].textContent = "Сложность: —";
+    details[3].textContent = "Игроков: —";
+    return;
+  }
+
+  const configuration = snapshot.currentGameConfiguration ?? snapshot.settings;
+  const savedAt = new Date(snapshot.savedAt);
+  status.textContent = Number.isNaN(savedAt.getTime())
+    ? "Сохранено"
+    : savedAt.toLocaleString("ru-RU", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+  details[0].replaceChildren();
+  const color = document.createElement("i");
+  color.className = "save-slot__color";
+  const isRobotBattle = configuration.mode === "robotBattle";
+  color.style.background = isRobotBattle
+    ? "conic-gradient(#22a06b, #ef5350, #3478f6, #f4b740, #22a06b)"
+    : PLAYER_COLORS[snapshot.settings.playerColor];
+  details[0].append(
+    color,
+    `Цвет: ${
+      isRobotBattle
+        ? "Роботы"
+        : PLAYER_COLOR_LABELS[snapshot.settings.playerColor] ?? "—"
+    }`,
+  );
+  details[1].textContent = `Карта: ${statisticOptionLabel(
+    MAP_SIZE_OPTIONS,
+    MAP_SIZE_LABELS,
+    configuration.mapSize,
+  )}`;
+  details[2].textContent = `Сложность: ${statisticOptionLabel(
+    DIFFICULTY_OPTIONS,
+    DIFFICULTY_LABELS,
+    configuration.difficulty,
+  )}`;
+  details[3].textContent = `Игроков: ${configuration.playerCount}`;
+}
+
+function renderSaveSlots() {
+  loadSlotButtons.forEach((button, index) => {
+    renderSaveSlot(button, saveSlots[index], false);
+  });
+  saveSlotButtons.forEach((button, index) => {
+    renderSaveSlot(button, saveSlots[index], true);
+  });
+}
+
+function saveGameToSlot(index) {
+  if (saveSlots[index]) {
+    const confirmed = window.confirm(`Перезаписать слот ${index + 1}?`);
+    if (!confirmed) return;
+  }
+
+  const previousSnapshot = saveSlots[index];
+  saveSlots[index] = createGameSnapshot();
+  if (!saveSaveSlots()) {
+    saveSlots[index] = previousSnapshot;
+    return;
+  }
+  renderSaveSlots();
+}
+
+function loadGameFromSlot(index) {
+  const snapshot = saveSlots[index];
+  if (!snapshot || !restoreGameSnapshot(snapshot)) return;
+  gameState = "quickPaused";
+  menuOverlay.hidden = true;
+  gameMenuButton.hidden = false;
+  showQuickPauseState(true);
 }
 
 function neutralStartingEnergy(point, spawnPoints) {
@@ -549,6 +972,7 @@ function createPlanet(id, x, y, radius, owner, energy, type) {
     shieldTimer: 0,
     computerDecisionTimer: Math.random() * computerDecisionDelay(),
     displayScale: 1,
+    sendFraction: 1,
   };
 }
 
@@ -620,6 +1044,7 @@ function selectPlanet(planet) {
 
   if (selectedPlanet) {
     updatePlanetTypeButtons();
+    updateSendFractionButton();
     positionPlanetPanel();
   }
 }
@@ -638,6 +1063,21 @@ function updatePlanetTypeButtons() {
     button.disabled = !selectedPlanet || selectedPlanet.energy < TYPE_CHANGE_COST;
   }
 }
+
+function updateSendFractionButton() {
+  const labels = { 1: "Всё", 0.5: "½", 0.25: "¼" };
+  const fraction = selectedPlanet?.sendFraction ?? 1;
+  sendFractionButton.textContent = labels[fraction];
+  sendFractionButton.title = `Отправляется: ${labels[fraction]}`;
+}
+
+sendFractionButton.addEventListener("click", () => {
+  if (!selectedPlanet) return;
+  const fractions = [1, 0.5, 0.25];
+  const currentIndex = fractions.indexOf(selectedPlanet.sendFraction);
+  selectedPlanet.sendFraction = fractions[(currentIndex + 1) % fractions.length];
+  updateSendFractionButton();
+});
 
 for (const button of planetTypeButtons) {
   button.addEventListener("click", () => {
@@ -767,7 +1207,7 @@ canvas.addEventListener("pointerup", (event) => {
       routes = routes.filter((route) => route.source !== drag.source);
       const route = { source: drag.source, target, timer: 0 };
       routes.push(route);
-      sendAllEnergy(route);
+      sendRouteEnergy(route);
     }
   }
 
@@ -822,11 +1262,109 @@ function resumeGame() {
   showQuickPauseState(false);
 }
 
+function statisticOptionLabel(options, labels, value) {
+  const index = options.indexOf(value);
+  return index >= 0 ? labels[index] : value;
+}
+
+function renderStatistics() {
+  const completedPlayerGames = statistics.wins + statistics.losses;
+  const winRate = completedPlayerGames > 0
+    ? Math.round((statistics.wins / completedPlayerGames) * 100)
+    : 0;
+
+  statisticsGames.textContent = String(statistics.gamesPlayed);
+  statisticsWins.textContent = String(statistics.wins);
+  statisticsLosses.textContent = String(statistics.losses);
+  statisticsWinRate.textContent = `${winRate}%`;
+  statisticsCurrentStreak.textContent = String(statistics.currentWinStreak);
+  statisticsBestStreak.textContent = String(statistics.bestWinStreak);
+  statisticsRobotBattles.textContent = String(statistics.robotBattles);
+  statisticsByType.replaceChildren();
+
+  const typeStatistics = Object.values(statistics.byType)
+    .sort((first, second) => second.gamesPlayed - first.gamesPlayed);
+
+  if (typeStatistics.length === 0) {
+    const emptyMessage = document.createElement("p");
+    emptyMessage.className = "statistics-empty";
+    emptyMessage.textContent = "Завершённых игр пока нет.";
+    statisticsByType.append(emptyMessage);
+    return;
+  }
+
+  for (const type of typeStatistics) {
+    const row = document.createElement("div");
+    row.className = "statistics-type";
+
+    const title = document.createElement("strong");
+    const mode = type.mode === "robotBattle" ? "Роботы" : "Обычная";
+    const mapSize = statisticOptionLabel(
+      MAP_SIZE_OPTIONS,
+      MAP_SIZE_LABELS,
+      type.mapSize,
+    );
+    const difficulty = statisticOptionLabel(
+      DIFFICULTY_OPTIONS,
+      DIFFICULTY_LABELS,
+      type.difficulty,
+    );
+    title.textContent = [
+      mode,
+      mapSize,
+      difficulty,
+      `${type.playerCount} игрока`,
+      type.mountains ? "Горы" : "Без гор",
+    ].join(" · ");
+
+    const resultText = document.createElement("span");
+    resultText.textContent = type.mode === "robotBattle"
+      ? `${type.gamesPlayed} завершено`
+      : `${type.gamesPlayed} игр · ${type.wins} побед · ${type.losses} поражений`;
+
+    row.append(title, resultText);
+    statisticsByType.append(row);
+  }
+}
+
+function showLoadGameMenu() {
+  gameState = "menu";
+  renderSaveSlots();
+  menuOverlay.hidden = false;
+  startMenu.hidden = true;
+  loadGameMenu.hidden = false;
+  statisticsMenu.hidden = true;
+  pauseMenu.hidden = true;
+  saveGameMenu.hidden = true;
+  victoryMenu.hidden = true;
+  defeatMenu.hidden = true;
+  gameMenuButton.hidden = true;
+  closeHelpPanel();
+}
+
+function showStatisticsMenu() {
+  gameState = "menu";
+  renderStatistics();
+  menuOverlay.hidden = false;
+  startMenu.hidden = true;
+  loadGameMenu.hidden = true;
+  statisticsMenu.hidden = false;
+  pauseMenu.hidden = true;
+  saveGameMenu.hidden = true;
+  victoryMenu.hidden = true;
+  defeatMenu.hidden = true;
+  gameMenuButton.hidden = true;
+  closeHelpPanel();
+}
+
 function showStartMenu() {
   gameState = "menu";
   menuOverlay.hidden = false;
   startMenu.hidden = false;
+  loadGameMenu.hidden = true;
+  statisticsMenu.hidden = true;
   pauseMenu.hidden = true;
+  saveGameMenu.hidden = true;
   victoryMenu.hidden = true;
   defeatMenu.hidden = true;
   gameMenuButton.hidden = true;
@@ -840,7 +1378,10 @@ function showPauseMenu() {
   gameState = "paused";
   menuOverlay.hidden = false;
   startMenu.hidden = true;
+  loadGameMenu.hidden = true;
+  statisticsMenu.hidden = true;
   pauseMenu.hidden = false;
+  saveGameMenu.hidden = true;
   victoryMenu.hidden = true;
   defeatMenu.hidden = true;
   gameMenuButton.hidden = true;
@@ -848,12 +1389,34 @@ function showPauseMenu() {
   closeHelpPanel();
 }
 
+function showSaveGameMenu() {
+  gameState = "paused";
+  renderSaveSlots();
+  menuOverlay.hidden = false;
+  startMenu.hidden = true;
+  loadGameMenu.hidden = true;
+  statisticsMenu.hidden = true;
+  pauseMenu.hidden = true;
+  saveGameMenu.hidden = false;
+  victoryMenu.hidden = true;
+  defeatMenu.hidden = true;
+  gameMenuButton.hidden = true;
+}
+
+function returnToPauseMenu() {
+  saveGameMenu.hidden = true;
+  pauseMenu.hidden = false;
+}
+
 function showVictoryMenu() {
   gameState = "victory";
   victoryTitle.textContent = result || "Победа!";
   menuOverlay.hidden = false;
   startMenu.hidden = true;
+  loadGameMenu.hidden = true;
+  statisticsMenu.hidden = true;
   pauseMenu.hidden = true;
+  saveGameMenu.hidden = true;
   victoryMenu.hidden = false;
   defeatMenu.hidden = true;
   gameMenuButton.hidden = true;
@@ -866,7 +1429,10 @@ function showDefeatMenu() {
   gameState = "defeat";
   menuOverlay.hidden = false;
   startMenu.hidden = true;
+  loadGameMenu.hidden = true;
+  statisticsMenu.hidden = true;
   pauseMenu.hidden = true;
+  saveGameMenu.hidden = true;
   victoryMenu.hidden = true;
   defeatMenu.hidden = false;
   gameMenuButton.hidden = true;
@@ -875,32 +1441,42 @@ function showDefeatMenu() {
   showQuickPauseState(false);
 }
 
-mapSizeSlider.value = String(MAP_SIZE_OPTIONS.indexOf(selectedMapSize));
-mapSizeSlider.setAttribute(
-  "aria-valuetext",
-  MAP_SIZE_LABELS[MAP_SIZE_OPTIONS.indexOf(selectedMapSize)],
-);
-difficultySlider.value = String(
-  DIFFICULTY_OPTIONS.indexOf(settings.difficulty),
-);
-difficultySlider.setAttribute(
-  "aria-valuetext",
-  DIFFICULTY_LABELS[DIFFICULTY_OPTIONS.indexOf(settings.difficulty)],
-);
-speedSlider.value = String(SPEED_OPTIONS.indexOf(settings.speed));
-speedSlider.setAttribute("aria-valuetext", String(settings.speed));
-mountainsCheckbox.checked = settings.mountains;
-robotBattleCheckbox.checked = settings.robotBattle;
-playerCountSlider.value = String(settings.playerCount);
-playerCountSlider.setAttribute("aria-valuetext", String(settings.playerCount));
-document.documentElement.style.setProperty("--player-color", PLAYER_COLORS[settings.playerColor]);
+function syncSettingsControls() {
+  mapSizeSlider.value = String(MAP_SIZE_OPTIONS.indexOf(selectedMapSize));
+  mapSizeSlider.setAttribute(
+    "aria-valuetext",
+    MAP_SIZE_LABELS[MAP_SIZE_OPTIONS.indexOf(selectedMapSize)],
+  );
+  difficultySlider.value = String(
+    DIFFICULTY_OPTIONS.indexOf(settings.difficulty),
+  );
+  difficultySlider.setAttribute(
+    "aria-valuetext",
+    DIFFICULTY_LABELS[DIFFICULTY_OPTIONS.indexOf(settings.difficulty)],
+  );
+  speedSlider.value = String(SPEED_OPTIONS.indexOf(settings.speed));
+  speedSlider.setAttribute("aria-valuetext", String(settings.speed));
+  mountainsCheckbox.checked = settings.mountains;
+  robotBattleCheckbox.checked = settings.robotBattle;
+  playerCountSlider.value = String(settings.playerCount);
+  playerCountSlider.setAttribute(
+    "aria-valuetext",
+    String(settings.playerCount),
+  );
+  document.documentElement.style.setProperty(
+    "--player-color",
+    PLAYER_COLORS[settings.playerColor],
+  );
 
-for (const button of playerColorButtons) {
-  const isActive = button.dataset.playerColor === settings.playerColor;
-  button.classList.toggle("is-active", isActive);
-  button.setAttribute("aria-pressed", String(isActive));
-  button.disabled = settings.robotBattle;
+  for (const button of playerColorButtons) {
+    const isActive = button.dataset.playerColor === settings.playerColor;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+    button.disabled = settings.robotBattle;
+  }
 }
+
+syncSettingsControls();
 
 mapSizeSlider.addEventListener("input", () => {
   const index = Number(mapSizeSlider.value);
@@ -965,7 +1541,27 @@ startGameButton.addEventListener("click", () => {
   createLevel();
   resumeGame();
 });
+loadGameButton.addEventListener("click", showLoadGameMenu);
+loadGameBackButton.addEventListener("click", showStartMenu);
+loadSlotButtons.forEach((button, index) => {
+  button.addEventListener("click", () => loadGameFromSlot(index));
+});
+saveSlotButtons.forEach((button, index) => {
+  button.addEventListener("click", () => saveGameToSlot(index));
+});
+statisticsButton.addEventListener("click", showStatisticsMenu);
+statisticsBackButton.addEventListener("click", showStartMenu);
+statisticsClearButton.addEventListener("click", () => {
+  const confirmed = window.confirm("Удалить всю накопленную статистику?");
+  if (!confirmed) return;
+
+  statistics = { ...DEFAULT_STATISTICS, byType: {} };
+  saveStatistics();
+  renderStatistics();
+});
 continueGameButton.addEventListener("click", resumeGame);
+saveGameButton.addEventListener("click", showSaveGameMenu);
+saveGameBackButton.addEventListener("click", returnToPauseMenu);
 restartGameButton.addEventListener("click", () => {
   createLevel(false);
   resumeGame();
@@ -1030,11 +1626,18 @@ helpButton.addEventListener("click", () => {
 });
 window.addEventListener("resize", resize);
 
-function sendAllEnergy(route) {
-  const amount = route.source.energy;
-  if (amount < 1 || route.source.owner === "neutral") return;
+function sendRouteEnergy(route) {
+  if (route.source.energy < 1 || route.source.owner === "neutral") return;
 
-  route.source.energy = 0;
+  const fraction = route.source.owner === "player"
+    ? route.source.sendFraction
+    : 1;
+  const amount = Math.min(
+    route.source.energy,
+    Math.ceil(route.source.energy * fraction),
+  );
+
+  route.source.energy -= amount;
   particles.push({
     source: route.source,
     target: route.target,
@@ -1111,6 +1714,7 @@ function deliver(particle) {
     target.owner = particle.owner;
     target.energy = Math.min(MAX_ENERGY, Math.abs(target.energy));
     setPlanetType(target, "standard");
+    target.sendFraction = 1;
     captureEffects.push({
       x: target.x,
       y: target.y,
@@ -1413,7 +2017,7 @@ function updateComputerPlayers(delta) {
             repeat: false,
           };
           routes.push(route);
-          sendAllEnergy(route);
+          sendRouteEnergy(route);
         }
         continue;
       }
@@ -1435,7 +2039,7 @@ function updateComputerPlayers(delta) {
             repeat: false,
           };
           routes.push(route);
-          sendAllEnergy(route);
+          sendRouteEnergy(route);
           computerPlans.delete(owner);
           computerQuietTimers.set(owner, 0);
         } else if (waitedTooLong) {
@@ -1468,7 +2072,7 @@ function updateComputerPlayers(delta) {
                 purpose: "rally",
               };
               routes.push(route);
-              sendAllEnergy(route);
+              sendRouteEnergy(route);
             }
           }
           continue;
@@ -1545,7 +2149,7 @@ function updateComputerPlayers(delta) {
           repeat: false,
         };
         routes.push(route);
-        sendAllEnergy(route);
+        sendRouteEnergy(route);
         continue;
       }
 
@@ -1561,7 +2165,7 @@ function updateComputerPlayers(delta) {
         purpose: "support",
       };
       routes.push(route);
-      sendAllEnergy(route);
+      sendRouteEnergy(route);
     }
   }
 }
@@ -1618,7 +2222,7 @@ function update(delta) {
     route.timer += delta;
     if (route.timer >= 1) {
       route.timer -= 1;
-      sendAllEnergy(route);
+      sendRouteEnergy(route);
     }
   }
 
@@ -1643,7 +2247,9 @@ function update(delta) {
         .filter((planet) => planet.owner.startsWith("enemy"))
         .map((planet) => planet.owner),
     );
-    if (computerOwners.size <= 1) result = "Победил компьютер!";
+    if (computerOwners.size <= 1) {
+      finishGame("Победил компьютер!", "robotBattle");
+    }
   } else {
     const playerPlanets = planets.filter(
       (planet) => planet.owner === "player",
@@ -1651,8 +2257,8 @@ function update(delta) {
     const enemyPlanets = planets.filter(
       (planet) => planet.owner.startsWith("enemy"),
     ).length;
-    if (enemyPlanets === 0) result = "Победа!";
-    if (playerPlanets === 0) result = "Поражение";
+    if (playerPlanets === 0) finishGame("Поражение", "loss");
+    else if (enemyPlanets === 0) finishGame("Победа!", "win");
   }
 }
 
@@ -1815,6 +2421,32 @@ function drawEconomicMarker(planet) {
   context.restore();
 }
 
+function drawSendFractionMarker(planet) {
+  if (planet.sendFraction === 1) return;
+
+  const label = planet.sendFraction === 0.5 ? "½" : "¼";
+  const radius = planetDisplayRadius(planet);
+  const badgeRadius = Math.max(5.175, radius * 0.28);
+  const x = planet.x - radius * 0.7;
+  const y = planet.y - radius * 0.7;
+
+  context.save();
+  context.fillStyle = planet.sendFraction === 0.5 ? "#f4b740" : "#c5cad3";
+  context.strokeStyle = "#ffffff";
+  context.lineWidth = 2.3;
+  context.beginPath();
+  context.arc(x, y, badgeRadius, 0, Math.PI * 2);
+  context.fill();
+  context.stroke();
+
+  context.fillStyle = "#101828";
+  context.font = `700 ${badgeRadius * 1.15}px -apple-system, BlinkMacSystemFont, sans-serif`;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(label, x, y + 0.4);
+  context.restore();
+}
+
 function drawCaptureEffects() {
   for (const effect of captureEffects) {
     const progress = effect.progress;
@@ -1927,6 +2559,7 @@ function draw() {
     context.fill();
     drawShield(planet);
     drawEconomicMarker(planet);
+    drawSendFractionMarker(planet);
 
     const energyText = String(Math.floor(planet.energy));
     context.fillStyle = ownerTextColor(planet.owner);

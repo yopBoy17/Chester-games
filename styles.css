@@ -79,8 +79,15 @@ body {
 }
 
 .menu-overlay[hidden],
-.menu-card[hidden] {
+.menu-card[hidden],
+.start-screen[hidden] {
   display: none;
+}
+
+.start-screen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
 .menu-card {
@@ -97,7 +104,46 @@ body {
 }
 
 .menu-card--start {
-  width: min(390px, 100%);
+  width: min(300px, calc(100% - 40px));
+}
+
+.start-settings {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: min(360px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  border-left: 0;
+  border-radius: 0 15px 15px 0;
+  text-align: left;
+  transform: translateY(-50%);
+  pointer-events: auto;
+}
+
+.start-settings .game-setting {
+  margin-top: 0;
+}
+
+.start-menu__main {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+}
+
+.start-menu__statistics {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.start-menu__statistics svg {
+  width: 19px;
+  height: 19px;
+  fill: currentcolor;
 }
 
 .menu-card h1,
@@ -665,6 +711,37 @@ body {
 .planet-panel__action.is-active {
   outline: 3px solid rgb(52 120 246 / 24%);
   background: #174ea6;
+}
+
+@media (max-width: 900px) {
+  .start-screen {
+    padding: 20px;
+    display: flex;
+    overflow-y: auto;
+    align-items: center;
+    flex-direction: column;
+    gap: 16px;
+    pointer-events: auto;
+  }
+
+  .start-settings,
+  .start-menu__main {
+    position: static;
+    width: min(390px, 100%);
+    max-height: none;
+    flex: 0 0 auto;
+    transform: none;
+  }
+
+  .start-menu__main {
+    order: 1;
+  }
+
+  .start-settings {
+    order: 2;
+    border: 1px solid #eaecf0;
+    border-radius: 15px;
+  }
 }
 
 @media (max-width: 640px) {

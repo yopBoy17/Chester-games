@@ -243,6 +243,11 @@ body {
   box-shadow: none;
 }
 
+.player-color-control button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 .help-button {
   position: fixed;
   top: 18px;

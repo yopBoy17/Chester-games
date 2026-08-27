@@ -79,9 +79,22 @@
               <span>Гипер</span>
             </div>
           </div>
+          <span class="game-setting__label">Сложность</span>
+          <div class="map-size-control">
+            <input id="difficulty-slider" class="speed-control__slider" type="range" min="0" max="2" step="1" value="1" aria-label="Сложность компьютера" aria-valuetext="Средний" />
+            <div class="map-size-control__marks" aria-hidden="true">
+              <span>Лёгкий</span>
+              <span>Средний</span>
+              <span>Сложный</span>
+            </div>
+          </div>
           <label class="checkbox-setting">
             <input id="mountains-checkbox" type="checkbox" />
             <span>Горы</span>
+          </label>
+          <label class="checkbox-setting">
+            <input id="robot-battle-checkbox" type="checkbox" />
+            <span>Битва роботов</span>
           </label>
           <span class="game-setting__label">Количество игроков</span>
           <div class="map-size-control">
@@ -111,9 +124,15 @@
       </section>
 
       <section id="victory-menu" class="menu-card" hidden>
-        <h2>Победа!</h2>
+        <h2 id="victory-title">Победа!</h2>
         <button id="new-game-button" class="menu-card__button" type="button">Новая игра</button>
         <button id="victory-exit-button" class="menu-card__button menu-card__button--secondary" type="button">Выйти в меню</button>
+      </section>
+
+      <section id="defeat-menu" class="menu-card" hidden>
+        <h2>Поражение</h2>
+        <button id="defeat-new-game-button" class="menu-card__button" type="button">Новая игра</button>
+        <button id="defeat-exit-button" class="menu-card__button menu-card__button--secondary" type="button">Выйти в меню</button>
       </section>
     </div>
 

@@ -5,6 +5,8 @@ const menuOverlay = document.querySelector("#menu-overlay");
 const startMenu = document.querySelector("#start-menu");
 const pauseMenu = document.querySelector("#pause-menu");
 const victoryMenu = document.querySelector("#victory-menu");
+const defeatMenu = document.querySelector("#defeat-menu");
+const victoryTitle = document.querySelector("#victory-title");
 const startGameButton = document.querySelector("#start-game-button");
 const continueGameButton = document.querySelector("#continue-game-button");
 const restartGameButton = document.querySelector("#restart-game-button");
@@ -12,12 +14,16 @@ const regenerateGameButton = document.querySelector("#regenerate-game-button");
 const exitToMenuButton = document.querySelector("#exit-to-menu-button");
 const newGameButton = document.querySelector("#new-game-button");
 const victoryExitButton = document.querySelector("#victory-exit-button");
+const defeatNewGameButton = document.querySelector("#defeat-new-game-button");
+const defeatExitButton = document.querySelector("#defeat-exit-button");
 const mapSizeSlider = document.querySelector("#map-size-slider");
+const difficultySlider = document.querySelector("#difficulty-slider");
 const speedSlider = document.querySelector("#speed-slider");
 const quickPauseButton = document.querySelector("#quick-pause-button");
 const quickPauseIcon = quickPauseButton.querySelector(".quick-pause-button__pause");
 const quickPlayIcon = quickPauseButton.querySelector(".quick-pause-button__play");
 const mountainsCheckbox = document.querySelector("#mountains-checkbox");
+const robotBattleCheckbox = document.querySelector("#robot-battle-checkbox");
 const playerCountSlider = document.querySelector("#player-count-slider");
 const playerColorButtons = document.querySelectorAll("[data-player-color]");
 const helpButton = document.querySelector("#help-button");
@@ -66,12 +72,42 @@ const MAP_SIZE_RANGES = {
 };
 const MAP_SIZE_OPTIONS = ["small", "medium", "large", "huge", "hyper"];
 const MAP_SIZE_LABELS = ["Малая", "Средняя", "Большая", "Огромная", "Гипер"];
+const DIFFICULTY_OPTIONS = ["easy", "normal", "hard"];
+const DIFFICULTY_LABELS = ["Лёгкий", "Средний", "Сложный"];
+const DIFFICULTY_CONFIG = {
+  easy: {
+    minimumDecisionDelay: 1.5,
+    maximumDecisionDelay: 2,
+    maximumAttackReserve: 6,
+    upgradeReserve: 25,
+    mistakeChance: 0.3,
+    playerPriority: 0,
+  },
+  normal: {
+    minimumDecisionDelay: 0.75,
+    maximumDecisionDelay: 1.25,
+    maximumAttackReserve: 4,
+    upgradeReserve: 15,
+    mistakeChance: 0,
+    playerPriority: 2,
+  },
+  hard: {
+    minimumDecisionDelay: 0.4,
+    maximumDecisionDelay: 0.7,
+    maximumAttackReserve: 2,
+    upgradeReserve: 10,
+    mistakeChance: 0,
+    playerPriority: 6,
+  },
+};
 const SPEED_OPTIONS = [0.1, 0.5, 1, 1.5, 2, 3];
 const SETTINGS_STORAGE_KEY = "planet-flow-settings";
 const DEFAULT_SETTINGS = {
   mapSize: "medium",
+  difficulty: "normal",
   speed: 1,
   mountains: false,
+  robotBattle: false,
   playerCount: 2,
   playerColor: "blue",
 };
@@ -108,8 +144,10 @@ let gameState = "menu";
 let settings = loadSettings();
 let selectedMapSize = MAP_SIZE_OPTIONS.includes(settings.mapSize) ? settings.mapSize : "medium";
 settings.mapSize = selectedMapSize;
+if (!DIFFICULTY_OPTIONS.includes(settings.difficulty)) settings.difficulty = "normal";
 if (!SPEED_OPTIONS.includes(settings.speed)) settings.speed = 1;
 settings.mountains = settings.mountains === true;
+settings.robotBattle = settings.robotBattle === true;
 if (![2, 3, 4].includes(settings.playerCount)) settings.playerCount = 2;
 if (!PLAYER_COLORS[settings.playerColor]) settings.playerColor = "blue";
 COLORS.player = PLAYER_COLORS[settings.playerColor];
@@ -144,30 +182,36 @@ function createLevel(regenerate = true) {
     const spawnIndices = chooseSpawnIndices(planets, connections, settings.playerCount);
     [playerIndex] = spawnIndices;
     const spawnPoints = spawnIndices.map((index) => points[index]);
-    const computerColorOptions = Object.keys(PLAYER_COLORS).filter(
-      (color) => color !== settings.playerColor,
+    const owners = settings.robotBattle
+      ? spawnIndices.map((_, index) => `enemy${index + 1}`)
+      : [
+          "player",
+          ...spawnIndices.slice(1).map((_, index) => `enemy${index + 1}`),
+        ];
+    const availableColors = Object.keys(PLAYER_COLORS).filter(
+      (color) => settings.robotBattle || color !== settings.playerColor,
     );
-    for (let index = computerColorOptions.length - 1; index > 0; index -= 1) {
+    for (let index = availableColors.length - 1; index > 0; index -= 1) {
       const randomIndex = Math.floor(Math.random() * (index + 1));
-      [computerColorOptions[index], computerColorOptions[randomIndex]] = [
-        computerColorOptions[randomIndex],
-        computerColorOptions[index],
+      [availableColors[index], availableColors[randomIndex]] = [
+        availableColors[randomIndex],
+        availableColors[index],
       ];
     }
 
-    COLORS.player = PLAYER_COLORS[settings.playerColor];
-    for (let index = 1; index < spawnIndices.length; index += 1) {
-      COLORS[`enemy${index}`] = PLAYER_COLORS[computerColorOptions[index - 1]];
+    for (const owner of owners) {
+      COLORS[owner] = owner === "player"
+        ? PLAYER_COLORS[settings.playerColor]
+        : PLAYER_COLORS[availableColors.shift()];
     }
+
+    const ownerByPlanetIndex = new Map(
+      spawnIndices.map((planetIndex, index) => [planetIndex, owners[index]]),
+    );
 
     for (let index = 0; index < planets.length; index += 1) {
       const planet = planets[index];
-      const spawnPosition = spawnIndices.indexOf(index);
-      const owner = spawnPosition === 0
-        ? "player"
-        : spawnPosition > 0
-          ? `enemy${spawnPosition}`
-          : "neutral";
+      const owner = ownerByPlanetIndex.get(index) ?? "neutral";
       const energy = owner === "player"
         ? 100
         : owner === "neutral"
@@ -181,8 +225,7 @@ function createLevel(regenerate = true) {
     currentLevelLayout = {
       playerIndex,
       colors: Object.fromEntries(
-        ["player", ...spawnIndices.slice(1).map((_, index) => `enemy${index + 1}`)]
-          .map((owner) => [owner, COLORS[owner]]),
+        owners.map((owner) => [owner, COLORS[owner]]),
       ),
       planets: planets.map((planet) => ({
         id: planet.id,
@@ -488,6 +531,7 @@ function createPlanet(id, x, y, radius, owner, energy, type) {
     shield: owner === "neutral" ? maxShield : 0,
     maxShield,
     shieldTimer: 0,
+    computerDecisionTimer: Math.random() * computerDecisionDelay(),
     displayScale: 1,
   };
 }
@@ -768,6 +812,7 @@ function showStartMenu() {
   startMenu.hidden = false;
   pauseMenu.hidden = true;
   victoryMenu.hidden = true;
+  defeatMenu.hidden = true;
   gameMenuButton.hidden = true;
   selectPlanet(null);
   closeHelpPanel();
@@ -781,6 +826,7 @@ function showPauseMenu() {
   startMenu.hidden = true;
   pauseMenu.hidden = false;
   victoryMenu.hidden = true;
+  defeatMenu.hidden = true;
   gameMenuButton.hidden = true;
   selectPlanet(null);
   closeHelpPanel();
@@ -788,10 +834,25 @@ function showPauseMenu() {
 
 function showVictoryMenu() {
   gameState = "victory";
+  victoryTitle.textContent = result || "Победа!";
   menuOverlay.hidden = false;
   startMenu.hidden = true;
   pauseMenu.hidden = true;
   victoryMenu.hidden = false;
+  defeatMenu.hidden = true;
+  gameMenuButton.hidden = true;
+  selectPlanet(null);
+  closeHelpPanel();
+  showQuickPauseState(false);
+}
+
+function showDefeatMenu() {
+  gameState = "defeat";
+  menuOverlay.hidden = false;
+  startMenu.hidden = true;
+  pauseMenu.hidden = true;
+  victoryMenu.hidden = true;
+  defeatMenu.hidden = false;
   gameMenuButton.hidden = true;
   selectPlanet(null);
   closeHelpPanel();
@@ -803,9 +864,17 @@ mapSizeSlider.setAttribute(
   "aria-valuetext",
   MAP_SIZE_LABELS[MAP_SIZE_OPTIONS.indexOf(selectedMapSize)],
 );
+difficultySlider.value = String(
+  DIFFICULTY_OPTIONS.indexOf(settings.difficulty),
+);
+difficultySlider.setAttribute(
+  "aria-valuetext",
+  DIFFICULTY_LABELS[DIFFICULTY_OPTIONS.indexOf(settings.difficulty)],
+);
 speedSlider.value = String(SPEED_OPTIONS.indexOf(settings.speed));
 speedSlider.setAttribute("aria-valuetext", String(settings.speed));
 mountainsCheckbox.checked = settings.mountains;
+robotBattleCheckbox.checked = settings.robotBattle;
 playerCountSlider.value = String(settings.playerCount);
 playerCountSlider.setAttribute("aria-valuetext", String(settings.playerCount));
 document.documentElement.style.setProperty("--player-color", PLAYER_COLORS[settings.playerColor]);
@@ -814,6 +883,7 @@ for (const button of playerColorButtons) {
   const isActive = button.dataset.playerColor === settings.playerColor;
   button.classList.toggle("is-active", isActive);
   button.setAttribute("aria-pressed", String(isActive));
+  button.disabled = settings.robotBattle;
 }
 
 mapSizeSlider.addEventListener("input", () => {
@@ -821,6 +891,16 @@ mapSizeSlider.addEventListener("input", () => {
   selectedMapSize = MAP_SIZE_OPTIONS[index];
   settings.mapSize = selectedMapSize;
   mapSizeSlider.setAttribute("aria-valuetext", MAP_SIZE_LABELS[index]);
+  saveSettings();
+});
+
+difficultySlider.addEventListener("input", () => {
+  const index = Number(difficultySlider.value);
+  settings.difficulty = DIFFICULTY_OPTIONS[index];
+  difficultySlider.setAttribute(
+    "aria-valuetext",
+    DIFFICULTY_LABELS[index],
+  );
   saveSettings();
 });
 
@@ -832,6 +912,14 @@ speedSlider.addEventListener("input", () => {
 
 mountainsCheckbox.addEventListener("change", () => {
   settings.mountains = mountainsCheckbox.checked;
+  saveSettings();
+});
+
+robotBattleCheckbox.addEventListener("change", () => {
+  settings.robotBattle = robotBattleCheckbox.checked;
+  for (const button of playerColorButtons) {
+    button.disabled = settings.robotBattle;
+  }
   saveSettings();
 });
 
@@ -882,6 +970,14 @@ victoryExitButton.addEventListener("click", () => {
   createLevel();
   showStartMenu();
 });
+defeatNewGameButton.addEventListener("click", () => {
+  createLevel();
+  resumeGame();
+});
+defeatExitButton.addEventListener("click", () => {
+  createLevel();
+  showStartMenu();
+});
 quickPauseButton.addEventListener("click", () => {
   if (gameState === "playing") {
     gameState = "quickPaused";
@@ -920,7 +1016,7 @@ window.addEventListener("resize", resize);
 
 function sendAllEnergy(route) {
   const amount = route.source.energy;
-  if (amount < 1 || route.source.owner !== "player") return;
+  if (amount < 1 || route.source.owner === "neutral") return;
 
   route.source.energy = 0;
   particles.push({
@@ -930,6 +1026,54 @@ function sendAllEnergy(route) {
     amount,
     progress: 0,
   });
+}
+
+function areOppositeParticles(first, second) {
+  return (
+    first.owner !== second.owner &&
+    first.source === second.target &&
+    first.target === second.source
+  );
+}
+
+function resolveParticleCollisions() {
+  const destroyedParticles = new Set();
+
+  for (let firstIndex = 0; firstIndex < particles.length; firstIndex += 1) {
+    const first = particles[firstIndex];
+    if (destroyedParticles.has(first)) continue;
+
+    for (
+      let secondIndex = firstIndex + 1;
+      secondIndex < particles.length;
+      secondIndex += 1
+    ) {
+      const second = particles[secondIndex];
+      if (destroyedParticles.has(second)) continue;
+      if (!areOppositeParticles(first, second)) continue;
+      if (first.progress + second.progress < 1) continue;
+
+      const difference = first.amount - second.amount;
+      if (Math.abs(difference) < 0.001) {
+        destroyedParticles.add(first);
+        destroyedParticles.add(second);
+        break;
+      }
+
+      if (difference > 0) {
+        first.amount = difference;
+        destroyedParticles.add(second);
+      } else {
+        second.amount = Math.abs(difference);
+        destroyedParticles.add(first);
+        break;
+      }
+    }
+  }
+
+  particles = particles.filter(
+    (particle) => !destroyedParticles.has(particle),
+  );
 }
 
 function deliver(particle) {
@@ -947,6 +1091,7 @@ function deliver(particle) {
   target.energy -= damage;
 
   if (target.energy <= 0) {
+    routes = routes.filter((route) => route.source !== target);
     target.owner = particle.owner;
     target.energy = Math.min(MAX_ENERGY, Math.abs(target.energy));
     setPlanetType(target, "standard");
@@ -959,6 +1104,225 @@ function deliver(particle) {
   }
 }
 
+function connectedPlanets(source) {
+  const neighbors = [];
+
+  for (const connection of connections) {
+    if (connection.first === source) neighbors.push(connection.second);
+    if (connection.second === source) neighbors.push(connection.first);
+  }
+
+  return neighbors;
+}
+
+function computerDecisionDelay() {
+  const config = DIFFICULTY_CONFIG[settings.difficulty];
+  return (
+    config.minimumDecisionDelay +
+    Math.random() *
+      (config.maximumDecisionDelay - config.minimumDecisionDelay)
+  );
+}
+
+function requiredComputerAttackEnergy(target, owner) {
+  const config = DIFFICULTY_CONFIG[settings.difficulty];
+  let defense = target.energy + target.shield;
+
+  if (settings.difficulty === "hard") {
+    const possibleAttackers = connectedPlanets(target).filter(
+      (planet) => planet.owner === owner,
+    ).length;
+    defense /= Math.max(1, possibleAttackers);
+  }
+
+  return (
+    defense +
+    Math.floor(
+      Math.random() ** 2 * (config.maximumAttackReserve + 1),
+    )
+  );
+}
+
+function computerPlanetUpgradeType(planet) {
+  if (planet.type !== "standard") return null;
+  const neighbors = connectedPlanets(planet);
+  const bordersOpponent = neighbors.some(
+    (neighbor) =>
+      neighbor.owner !== "neutral" && neighbor.owner !== planet.owner,
+  );
+  const isBackline = neighbors.every(
+    (neighbor) => neighbor.owner === planet.owner,
+  );
+  const blockedByStrongNeutral = neighbors.some(
+    (neighbor) =>
+      neighbor.owner === "neutral" &&
+      neighbor.energy + neighbor.shield >= planet.energy,
+  );
+
+  if (bordersOpponent) return "defensive";
+  if (isBackline || blockedByStrongNeutral) return "economic";
+  return null;
+}
+
+function upgradeComputerPlanet(planet, type) {
+  const config = DIFFICULTY_CONFIG[settings.difficulty];
+  if (
+    !type ||
+    planet.energy < TYPE_CHANGE_COST + config.upgradeReserve
+  ) {
+    return false;
+  }
+
+  planet.energy -= TYPE_CHANGE_COST;
+  setPlanetType(planet, type);
+  return true;
+}
+
+function computerSupportTarget(source, owner) {
+  const visited = new Set([source]);
+  const queue = connectedPlanets(source)
+    .filter((planet) => planet.owner === owner)
+    .map((planet) => ({ planet, firstStep: planet }));
+
+  for (const item of queue) visited.add(item.planet);
+
+  for (let index = 0; index < queue.length; index += 1) {
+    const { planet, firstStep } = queue[index];
+    const neighbors = connectedPlanets(planet);
+    const isFrontline = neighbors.some(
+      (neighbor) => neighbor.owner !== owner,
+    );
+    if (isFrontline) return firstStep;
+
+    for (const neighbor of neighbors) {
+      if (neighbor.owner !== owner || visited.has(neighbor)) continue;
+      visited.add(neighbor);
+      queue.push({ planet: neighbor, firstStep });
+    }
+  }
+
+  return null;
+}
+
+function updateComputerPlayers(delta) {
+  const config = DIFFICULTY_CONFIG[settings.difficulty];
+  const readyPlanets = new Set();
+
+  for (const planet of planets) {
+    if (!planet.owner.startsWith("enemy")) continue;
+
+    planet.computerDecisionTimer -= delta;
+    if (planet.computerDecisionTimer > 0) continue;
+
+    readyPlanets.add(planet);
+    planet.computerDecisionTimer = computerDecisionDelay();
+  }
+
+  const computerOwners = [
+    ...new Set(
+      planets
+        .filter((planet) => planet.owner.startsWith("enemy"))
+        .map((planet) => planet.owner),
+    ),
+  ];
+
+  for (const owner of computerOwners) {
+    const ownedPlanets = planets
+      .filter(
+        (planet) => planet.owner === owner && readyPlanets.has(planet),
+      )
+      .sort((first, second) => second.energy - first.energy);
+
+    for (const source of ownedPlanets) {
+      const existingRoute = routes.find((route) => route.source === source);
+      const plannedUpgrade = computerPlanetUpgradeType(source);
+
+      if (
+        existingRoute &&
+        existingRoute.purpose === "support" &&
+        plannedUpgrade
+      ) {
+        routes = routes.filter((route) => route !== existingRoute);
+      }
+
+      if (
+        existingRoute &&
+        existingRoute.purpose === "attack" &&
+        existingRoute.target.owner !== owner
+      ) {
+        routes = routes.filter((route) => route !== existingRoute);
+      }
+
+      if (
+        existingRoute &&
+        existingRoute.purpose === "attack" &&
+        existingRoute.target.owner === owner &&
+        existingRoute.target.energy >= 5
+      ) {
+        routes = routes.filter((route) => route !== existingRoute);
+      }
+
+      upgradeComputerPlanet(source, plannedUpgrade);
+      if (
+        plannedUpgrade === "economic" &&
+        source.type === "standard"
+      ) {
+        continue;
+      }
+      if (routes.some((route) => route.source === source)) continue;
+
+      const neighboringTargets = connectedPlanets(source).filter(
+        (planet) => planet.owner !== owner,
+      );
+      const targets = neighboringTargets
+        .map((planet) => ({
+          planet,
+          requiredEnergy: requiredComputerAttackEnergy(planet, owner),
+        }))
+        .filter((target) => source.energy >= target.requiredEnergy)
+        .sort((first, second) => {
+          const firstPriority =
+            first.requiredEnergy -
+            (first.planet.owner === "player" ? config.playerPriority : 0);
+          const secondPriority =
+            second.requiredEnergy -
+            (second.planet.owner === "player" ? config.playerPriority : 0);
+          return firstPriority - secondPriority;
+        });
+
+      if (targets.length > 0) {
+        const selectedTarget =
+          targets.length > 1 && Math.random() < config.mistakeChance
+            ? targets[Math.floor(Math.random() * targets.length)]
+            : targets[0];
+        const route = {
+          source,
+          target: selectedTarget.planet,
+          timer: 0,
+          purpose: "attack",
+        };
+        routes.push(route);
+        sendAllEnergy(route);
+        continue;
+      }
+
+      if (neighboringTargets.length > 0 || source.energy < 5) continue;
+
+      const supportTarget = computerSupportTarget(source, owner);
+      if (!supportTarget) continue;
+
+      const route = {
+        source,
+        target: supportTarget,
+        timer: 0,
+        purpose: "support",
+      };
+      routes.push(route);
+      sendAllEnergy(route);
+    }
+  }
+}
+
 function update(delta) {
   if (gameState !== "playing") return;
 
@@ -968,7 +1332,10 @@ function update(delta) {
   captureEffects = captureEffects.filter((effect) => effect.progress < 1);
 
   if (result) {
-    if (result === "Победа!" && captureEffects.length === 0) showVictoryMenu();
+    if (captureEffects.length === 0) {
+      if (result === "Поражение") showDefeatMenu();
+      else showVictoryMenu();
+    }
     return;
   }
 
@@ -979,11 +1346,14 @@ function update(delta) {
 
     if (planet.owner !== "neutral") {
       const generation = STANDARD_GENERATION * PLANET_TYPES[planet.type].generationMultiplier;
-      planet.energy = Math.min(MAX_ENERGY, planet.energy + delta * generation);
+      planet.energy = Math.min(
+        MAX_ENERGY,
+        planet.energy + delta * generation * settings.speed,
+      );
     }
 
     if (planet.shield < planet.maxShield) {
-      planet.shieldTimer += delta;
+      planet.shieldTimer += delta * settings.speed;
       if (planet.shieldTimer >= SHIELD_RECHARGE_TIME) {
         planet.shieldTimer -= SHIELD_RECHARGE_TIME;
         planet.shield = Math.min(planet.maxShield, planet.shield + 1);
@@ -998,6 +1368,8 @@ function update(delta) {
     positionPlanetPanel();
   }
 
+  updateComputerPlayers(delta);
+
   for (const route of routes) {
     route.timer += delta;
     if (route.timer >= 1) {
@@ -1011,15 +1383,33 @@ function update(delta) {
       particle.target.x - particle.source.x,
       particle.target.y - particle.source.y,
     );
-    particle.progress += (ENERGY_TRAVEL_SPEED / distance) * delta;
+    particle.progress +=
+      (ENERGY_TRAVEL_SPEED / distance) * delta * settings.speed;
+  }
+
+  resolveParticleCollisions();
+  for (const particle of particles) {
     if (particle.progress >= 1) deliver(particle);
   }
   particles = particles.filter((particle) => particle.progress < 1);
 
-  const playerPlanets = planets.filter((planet) => planet.owner === "player").length;
-  const enemyPlanets = planets.filter((planet) => planet.owner.startsWith("enemy")).length;
-  if (enemyPlanets === 0) result = "Победа!";
-  if (playerPlanets === 0) result = "Поражение";
+  if (settings.robotBattle) {
+    const computerOwners = new Set(
+      planets
+        .filter((planet) => planet.owner.startsWith("enemy"))
+        .map((planet) => planet.owner),
+    );
+    if (computerOwners.size <= 1) result = "Победил компьютер!";
+  } else {
+    const playerPlanets = planets.filter(
+      (planet) => planet.owner === "player",
+    ).length;
+    const enemyPlanets = planets.filter(
+      (planet) => planet.owner.startsWith("enemy"),
+    ).length;
+    if (enemyPlanets === 0) result = "Победа!";
+    if (playerPlanets === 0) result = "Поражение";
+  }
 }
 
 function drawArrow(fromX, fromY, toX, toY, color, alpha = 1) {

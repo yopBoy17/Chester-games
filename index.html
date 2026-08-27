@@ -9,11 +9,130 @@
   <body>
     <canvas id="game" aria-label="Игровое поле"></canvas>
 
-    <div class="help">
-      Протяни от синей планеты к другой, чтобы направить энергию
+    <button id="help-button" class="help-button" type="button" aria-label="Открыть подсказку" aria-expanded="false">?</button>
+
+    <div class="speed-control">
+      <span class="speed-control__title">Скорость</span>
+      <button id="quick-pause-button" class="quick-pause-button" type="button" aria-label="Поставить игру на паузу" title="Пауза">
+        <svg class="quick-pause-button__pause" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M7 5h3v14H7zm7 0h3v14h-3z" />
+        </svg>
+        <svg class="quick-pause-button__play" viewBox="0 0 24 24" aria-hidden="true" hidden>
+          <path d="m8 5 11 7-11 7V5z" />
+        </svg>
+      </button>
+      <input id="speed-slider" class="speed-control__slider" type="range" min="0" max="5" step="1" value="2" aria-label="Скорость игры" />
+      <div class="speed-control__marks" aria-hidden="true">
+        <span>0.1</span>
+        <span>0.5</span>
+        <span>1</span>
+        <span>1.5</span>
+        <span>2</span>
+        <span>3</span>
+      </div>
     </div>
 
-    <button id="restart" type="button">Начать заново</button>
+    <aside id="help-panel" class="help-panel" hidden>
+      <h2>Типы планет</h2>
+      <div class="help-panel__item">
+        <div class="planet-preview planet-preview--standard"><span>3</span></div>
+        <div class="help-panel__description">
+          <strong>Стандартная</strong>
+          <span>1 энергия/сек · щит 7</span>
+        </div>
+      </div>
+      <div class="help-panel__item">
+        <div class="planet-preview planet-preview--economic"><span>3</span></div>
+        <div class="help-panel__description">
+          <strong>Экономическая</strong>
+          <span>2 энергии/сек · без щита</span>
+        </div>
+      </div>
+      <div class="help-panel__item">
+        <div class="planet-preview planet-preview--defensive"><span>3</span></div>
+        <div class="help-panel__description">
+          <strong>Защитная</strong>
+          <span>0.5 энергии/сек · щит 20</span>
+        </div>
+      </div>
+      <p>Щит восстанавливает 1 сегмент/сек. Каждый сегмент поглощает 1 урон.</p>
+      <p>Смена типа стоит 10 энергии.</p>
+      <p>Потяни от своей планеты в сторону соседней для передачи. Двойное нажатие останавливает поток.</p>
+      <p>Перетаскивай пустое поле для перемещения. Колесо мыши или жест двумя пальцами меняет масштаб.</p>
+    </aside>
+
+    <button id="game-menu-button" type="button" hidden>Меню</button>
+
+    <div id="menu-overlay" class="menu-overlay">
+      <section id="start-menu" class="menu-card menu-card--start">
+        <h1>Planet Flow</h1>
+        <button id="start-game-button" class="menu-card__button" type="button">Начать игру</button>
+        <div class="game-setting">
+          <span class="game-setting__label">Размер карты</span>
+          <div class="map-size-control">
+            <input id="map-size-slider" class="speed-control__slider" type="range" min="0" max="4" step="1" value="1" aria-label="Размер карты" aria-valuetext="Средняя" />
+            <div class="map-size-control__marks" aria-hidden="true">
+              <span>Малая</span>
+              <span>Средняя</span>
+              <span>Большая</span>
+              <span>Огромная</span>
+              <span>Гипер</span>
+            </div>
+          </div>
+          <label class="checkbox-setting">
+            <input id="mountains-checkbox" type="checkbox" />
+            <span>Горы</span>
+          </label>
+          <span class="game-setting__label">Количество игроков</span>
+          <div class="map-size-control">
+            <input id="player-count-slider" class="speed-control__slider" type="range" min="2" max="4" step="1" value="2" aria-label="Количество игроков" aria-valuetext="2" />
+            <div class="map-size-control__marks" aria-hidden="true">
+              <span>2</span>
+              <span>3</span>
+              <span>4</span>
+            </div>
+          </div>
+          <span class="game-setting__label">Цвет игрока</span>
+          <div class="player-color-control" role="group" aria-label="Цвет игрока">
+            <button type="button" data-player-color="green" aria-label="Зелёный" title="Зелёный"></button>
+            <button type="button" data-player-color="red" aria-label="Красный" title="Красный"></button>
+            <button type="button" data-player-color="blue" aria-label="Синий" title="Синий"></button>
+            <button type="button" data-player-color="yellow" aria-label="Жёлтый" title="Жёлтый"></button>
+          </div>
+        </div>
+      </section>
+
+      <section id="pause-menu" class="menu-card" hidden>
+        <h2>Пауза</h2>
+        <button id="continue-game-button" class="menu-card__button" type="button">Продолжить</button>
+        <button id="restart-game-button" class="menu-card__button menu-card__button--secondary" type="button">Начать заново</button>
+        <button id="regenerate-game-button" class="menu-card__button menu-card__button--secondary" type="button">Регенерировать</button>
+        <button id="exit-to-menu-button" class="menu-card__button menu-card__button--secondary" type="button">Выйти в меню</button>
+      </section>
+
+      <section id="victory-menu" class="menu-card" hidden>
+        <h2>Победа!</h2>
+        <button id="new-game-button" class="menu-card__button" type="button">Новая игра</button>
+        <button id="victory-exit-button" class="menu-card__button menu-card__button--secondary" type="button">Выйти в меню</button>
+      </section>
+    </div>
+
+    <section id="planet-panel" class="planet-panel" hidden>
+      <div class="planet-panel__actions">
+        <div class="planet-type-option">
+          <button class="planet-panel__action" type="button" data-planet-type="economic" aria-label="Экономическая планета" title="Экономическая планета">₽</button>
+          <span class="planet-panel__cost">10 ₽</span>
+        </div>
+        <div class="planet-type-option">
+          <button class="planet-panel__action" type="button" data-planet-type="defensive" aria-label="Защитная планета" title="Защитная планета">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2.5 20 6v5.3c0 5-3.4 8.6-8 10.2-4.6-1.6-8-5.2-8-10.2V6l8-3.5Z" />
+            </svg>
+          </button>
+          <span class="planet-panel__cost">10 ₽</span>
+        </div>
+      </div>
+    </section>
 
     <script src="game.js"></script>
   </body>

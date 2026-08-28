@@ -3,6 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#3478f6" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
     <title>Planet Flow</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -57,11 +63,19 @@
       </div>
       <p>Щит восстанавливает 1 сегмент/сек. Каждый сегмент поглощает 1 урон.</p>
       <p>Смена типа стоит 10 энергии.</p>
-      <p>Потяни от своей планеты в сторону соседней для передачи. Двойное нажатие останавливает поток.</p>
-      <p>Перетаскивай пустое поле для перемещения. Колесо мыши или жест двумя пальцами меняет масштаб.</p>
+      <p>Потяни от своей планеты в сторону соседней для передачи. Двойное нажатие на источник или кнопка ■ в панели останавливает поток.</p>
+      <p>Перетаскивай пустое поле для перемещения. Колесо мыши или жест двумя пальцами меняет масштаб. На больших картах можно перемещаться через мини-карту.</p>
     </aside>
 
     <button id="game-menu-button" type="button" hidden>Меню</button>
+    <button id="leave-multiplayer-game-button" type="button" hidden>Покинуть игру</button>
+
+    <section id="minimap" class="minimap" aria-label="Мини-карта" hidden>
+      <button id="minimap-toggle" class="minimap__toggle" type="button" aria-label="Свернуть мини-карту" aria-expanded="true">Карта</button>
+      <canvas id="minimap-canvas" width="180" height="180" aria-label="Обзор игрового поля"></canvas>
+    </section>
+
+    <div id="multiplayer-countdown" class="multiplayer-countdown" hidden></div>
 
     <div id="menu-overlay" class="menu-overlay">
       <section id="start-menu" class="start-screen">
@@ -117,8 +131,10 @@
 
         <section class="menu-card menu-card--start start-menu__main">
           <h1>Planet Flow</h1>
-          <button id="start-game-button" class="menu-card__button" type="button">Начать игру</button>
-          <button id="load-game-button" class="menu-card__button menu-card__button--secondary" type="button">Загрузить игру</button>
+           <button id="start-game-button" class="menu-card__button" type="button">Начать игру</button>
+           <button id="multiplayer-button" class="menu-card__button menu-card__button--secondary" type="button">Сетевая игра</button>
+           <button id="install-app-button" class="menu-card__button menu-card__button--secondary" type="button" hidden>Установить приложение</button>
+           <button id="load-game-button" class="menu-card__button menu-card__button--secondary" type="button">Загрузить игру</button>
           <button id="statistics-button" class="menu-card__button menu-card__button--secondary start-menu__statistics" type="button" aria-label="Статистика">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M7 3h10v3h3v2c0 3.1-1.8 5.3-4.8 5.9A6 6 0 0 1 13 16.7V19h4v2H7v-2h4v-2.3a6 6 0 0 1-2.2-2.8C5.8 13.3 4 11.1 4 8V6h3V3Zm10 5v3.5c.7-.3 1.2-.8 1.5-1.4.3-.6.5-1.3.5-2.1h-2ZM5 8c0 .8.2 1.5.5 2.1.3.6.8 1.1 1.5 1.4V8H5Z" />
@@ -126,6 +142,50 @@
             <span>Статистика</span>
           </button>
         </section>
+      </section>
+
+      <section id="multiplayer-menu" class="menu-card menu-card--multiplayer" hidden>
+        <h2>Сетевая игра</h2>
+        <p id="multiplayer-status" class="multiplayer-status">Создай комнату или введи код друга.</p>
+        <div id="multiplayer-settings" class="multiplayer-settings">
+          <span class="game-setting__label">Размер карты</span>
+          <div class="map-size-control">
+            <input id="multiplayer-map-size-slider" class="speed-control__slider" type="range" min="0" max="4" step="1" value="1" aria-label="Размер сетевой карты" aria-valuetext="Средняя" />
+            <div class="map-size-control__marks" aria-hidden="true">
+              <span>Малая</span>
+              <span>Средняя</span>
+              <span>Большая</span>
+              <span>Огромная</span>
+              <span>Гипер</span>
+            </div>
+          </div>
+          <label class="checkbox-setting">
+            <input id="multiplayer-mountains-checkbox" type="checkbox" />
+            <span>Горы</span>
+          </label>
+          <span class="game-setting__label">Цвет хозяина</span>
+          <div class="player-color-control" role="group" aria-label="Цвет хозяина комнаты">
+            <button type="button" data-player-color="green" aria-label="Зелёный" title="Зелёный"></button>
+            <button type="button" data-player-color="red" aria-label="Красный" title="Красный"></button>
+            <button type="button" data-player-color="blue" aria-label="Синий" title="Синий"></button>
+            <button type="button" data-player-color="yellow" aria-label="Жёлтый" title="Жёлтый"></button>
+          </div>
+        </div>
+        <div id="multiplayer-actions" class="multiplayer-actions">
+          <button id="create-room-button" class="menu-card__button" type="button">Создать комнату</button>
+          <div class="multiplayer-divider"><span>или</span></div>
+          <div class="multiplayer-join">
+            <input id="room-code-input" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="Код" aria-label="Код комнаты" />
+            <button id="join-room-button" class="menu-card__button" type="button">Войти</button>
+          </div>
+        </div>
+        <div id="multiplayer-room" class="multiplayer-room" hidden>
+          <span>Код комнаты</span>
+          <strong id="multiplayer-room-code">—</strong>
+          <p id="multiplayer-players">Ожидаем второго игрока…</p>
+        </div>
+        <button id="multiplayer-start-button" class="menu-card__button" type="button" hidden>Начать игру</button>
+        <button id="multiplayer-back-button" class="menu-card__button menu-card__button--secondary" type="button">Назад</button>
       </section>
 
       <section id="load-game-menu" class="menu-card menu-card--load" hidden>
@@ -265,12 +325,16 @@
 
       <section id="victory-menu" class="menu-card" hidden>
         <h2 id="victory-title">Победа!</h2>
+        <p id="victory-score" class="match-score" hidden></p>
+        <p id="victory-rematch-status" class="rematch-status" hidden></p>
         <button id="new-game-button" class="menu-card__button" type="button">Новая игра</button>
         <button id="victory-exit-button" class="menu-card__button menu-card__button--secondary" type="button">Выйти в меню</button>
       </section>
 
       <section id="defeat-menu" class="menu-card" hidden>
         <h2>Поражение</h2>
+        <p id="defeat-score" class="match-score" hidden></p>
+        <p id="defeat-rematch-status" class="rematch-status" hidden></p>
         <button id="defeat-new-game-button" class="menu-card__button" type="button">Новая игра</button>
         <button id="defeat-exit-button" class="menu-card__button menu-card__button--secondary" type="button">Выйти в меню</button>
       </section>
@@ -279,6 +343,7 @@
     <section id="planet-panel" class="planet-panel" hidden>
       <div class="planet-panel__send">
         <button id="send-fraction-button" class="planet-panel__send-option" type="button" aria-label="Изменить долю отправляемой энергии">Всё</button>
+        <button id="stop-route-button" class="planet-panel__stop" type="button" aria-label="Остановить поток" title="Остановить поток">■</button>
       </div>
       <div class="planet-panel__actions">
         <div class="planet-type-option">

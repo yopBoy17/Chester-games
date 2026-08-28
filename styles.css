@@ -68,6 +68,110 @@ body {
   background: #f9fafb;
 }
 
+#leave-multiplayer-game-button {
+  position: fixed;
+  z-index: 4;
+  top: 18px;
+  right: 18px;
+  padding: 9px 13px;
+  border: 1px solid #fecdca;
+  border-radius: 9px;
+  color: #b42318;
+  background: rgb(255 255 255 / 94%);
+  cursor: pointer;
+  font: inherit;
+}
+
+#leave-multiplayer-game-button:hover {
+  background: #fef3f2;
+}
+
+.minimap {
+  position: fixed;
+  z-index: 2;
+  right: 18px;
+  bottom: 18px;
+  width: 180px;
+  overflow: hidden;
+  border: 1px solid #d0d5dd;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: 0 8px 24px rgb(16 24 40 / 12%);
+}
+
+.minimap[hidden] {
+  display: none;
+}
+
+.minimap__toggle {
+  width: 100%;
+  padding: 5px 9px;
+  border: 0;
+  border-bottom: 1px solid #eaecf0;
+  color: #475467;
+  background: rgb(249 250 251 / 92%);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.minimap canvas {
+  width: 180px;
+  height: 180px;
+  display: block;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.minimap.is-collapsed canvas {
+  display: none;
+}
+
+.minimap.is-collapsed {
+  width: 58px;
+}
+
+.minimap.is-collapsed .minimap__toggle {
+  border-bottom: 0;
+  text-align: center;
+}
+
+.multiplayer-countdown {
+  position: fixed;
+  z-index: 6;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgb(16 24 40 / 24%);
+  font-size: clamp(72px, 15vw, 150px);
+  font-weight: 800;
+  pointer-events: none;
+  text-shadow: 0 6px 24px rgb(16 24 40 / 28%);
+}
+
+.multiplayer-countdown[hidden] {
+  display: none;
+}
+
+.match-score {
+  margin: -2px 0 10px;
+  color: #344054;
+  font-size: 22px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.rematch-status {
+  min-height: 18px;
+  margin: -2px 0 8px;
+  color: #667085;
+  font-size: 13px;
+  text-align: center;
+}
+
 .menu-overlay {
   position: fixed;
   z-index: 5;
@@ -150,6 +254,103 @@ body {
   width: min(360px, calc(100vw - 40px));
   max-height: calc(100vh - 40px);
   overflow-y: auto;
+}
+
+.menu-card--multiplayer {
+  width: min(340px, calc(100vw - 32px));
+  gap: 12px;
+}
+
+.multiplayer-status,
+.multiplayer-room p {
+  margin: 0;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.multiplayer-status.is-error {
+  color: #b42318;
+}
+
+.multiplayer-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.multiplayer-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  text-align: left;
+}
+
+.multiplayer-settings.is-locked {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.multiplayer-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #98a2b3;
+  font-size: 10px;
+}
+
+.multiplayer-divider::before,
+.multiplayer-divider::after {
+  height: 1px;
+  flex: 1;
+  content: "";
+  background: #eaecf0;
+}
+
+.multiplayer-join {
+  display: grid;
+  grid-template-columns: 1fr 110px;
+  gap: 8px;
+}
+
+.multiplayer-join input {
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  color: #101828;
+  background: #fff;
+  font: 700 18px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0.18em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.multiplayer-join input:focus {
+  border-color: #3478f6;
+  outline: 3px solid rgb(52 120 246 / 14%);
+}
+
+.multiplayer-room {
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 5px;
+  border: 1px solid #b2ccff;
+  border-radius: 12px;
+  background: #f5f8ff;
+}
+
+.multiplayer-room > span {
+  color: #667085;
+  font-size: 11px;
+}
+
+.multiplayer-room strong {
+  color: #174ea6;
+  font-size: 30px;
+  letter-spacing: 0.18em;
 }
 
 .save-slots {
@@ -535,6 +736,10 @@ body {
   background: #e4e7ec;
 }
 
+.is-multiplayer .speed-control {
+  display: none;
+}
+
 .quick-pause-button svg {
   width: 16px;
   height: 16px;
@@ -850,11 +1055,6 @@ body {
   gap: 5px;
 }
 
-.planet-panel__send::after {
-  height: 14px;
-  content: "";
-}
-
 .planet-panel__send-option {
   width: 52px;
   height: 40px;
@@ -868,6 +1068,30 @@ body {
   font-size: 15px;
   font-weight: 700;
   pointer-events: auto;
+}
+
+.planet-panel__stop {
+  width: 52px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  color: #475467;
+  background: #eaecf0;
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1;
+  pointer-events: auto;
+}
+
+.planet-panel__stop:hover:not(:disabled) {
+  color: #b42318;
+  background: #fee4e2;
+}
+
+.planet-panel__stop:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .planet-panel__send-option:hover {
@@ -984,6 +1208,26 @@ body {
   #game-menu-button {
     top: 12px;
     right: 12px;
+  }
+
+  #leave-multiplayer-game-button {
+    top: 12px;
+    right: 12px;
+  }
+
+  .minimap {
+    right: 12px;
+    bottom: 12px;
+    width: 116px;
+  }
+
+  .minimap canvas {
+    width: 116px;
+    height: 116px;
+  }
+
+  .minimap.is-collapsed {
+    width: 52px;
   }
 
   .planet-panel {

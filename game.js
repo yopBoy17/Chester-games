@@ -1,8 +1,11 @@
 const canvas = document.querySelector("#game");
 const context = canvas.getContext("2d");
 const gameMenuButton = document.querySelector("#game-menu-button");
+const installAppButton = document.querySelector("#install-app-button");
+const leaveMultiplayerGameButton = document.querySelector("#leave-multiplayer-game-button");
 const menuOverlay = document.querySelector("#menu-overlay");
 const startMenu = document.querySelector("#start-menu");
+const multiplayerMenu = document.querySelector("#multiplayer-menu");
 const loadGameMenu = document.querySelector("#load-game-menu");
 const statisticsMenu = document.querySelector("#statistics-menu");
 const pauseMenu = document.querySelector("#pause-menu");
@@ -11,6 +14,20 @@ const victoryMenu = document.querySelector("#victory-menu");
 const defeatMenu = document.querySelector("#defeat-menu");
 const victoryTitle = document.querySelector("#victory-title");
 const startGameButton = document.querySelector("#start-game-button");
+const multiplayerButton = document.querySelector("#multiplayer-button");
+const multiplayerStatus = document.querySelector("#multiplayer-status");
+const multiplayerActions = document.querySelector("#multiplayer-actions");
+const multiplayerRoom = document.querySelector("#multiplayer-room");
+const multiplayerRoomCode = document.querySelector("#multiplayer-room-code");
+const multiplayerPlayers = document.querySelector("#multiplayer-players");
+const createRoomButton = document.querySelector("#create-room-button");
+const joinRoomButton = document.querySelector("#join-room-button");
+const roomCodeInput = document.querySelector("#room-code-input");
+const multiplayerStartButton = document.querySelector("#multiplayer-start-button");
+const multiplayerBackButton = document.querySelector("#multiplayer-back-button");
+const multiplayerSettings = document.querySelector("#multiplayer-settings");
+const multiplayerMapSizeSlider = document.querySelector("#multiplayer-map-size-slider");
+const multiplayerMountainsCheckbox = document.querySelector("#multiplayer-mountains-checkbox");
 const loadGameButton = document.querySelector("#load-game-button");
 const loadGameBackButton = document.querySelector("#load-game-back-button");
 const statisticsButton = document.querySelector("#statistics-button");
@@ -55,6 +72,16 @@ const helpPanel = document.querySelector("#help-panel");
 const planetPanel = document.querySelector("#planet-panel");
 const planetTypeButtons = document.querySelectorAll("[data-planet-type]");
 const sendFractionButton = document.querySelector("#send-fraction-button");
+const stopRouteButton = document.querySelector("#stop-route-button");
+const minimap = document.querySelector("#minimap");
+const minimapCanvas = document.querySelector("#minimap-canvas");
+const minimapContext = minimapCanvas.getContext("2d");
+const minimapToggle = document.querySelector("#minimap-toggle");
+const multiplayerCountdown = document.querySelector("#multiplayer-countdown");
+const victoryScore = document.querySelector("#victory-score");
+const defeatScore = document.querySelector("#defeat-score");
+const victoryRematchStatus = document.querySelector("#victory-rematch-status");
+const defeatRematchStatus = document.querySelector("#defeat-rematch-status");
 
 const PLAYER_COLORS = {
   green: "#22a06b",
@@ -77,7 +104,7 @@ const SHIELD_RECHARGE_TIME = 1;
 const WORLD_WIDTH = 2_000;
 const WORLD_HEIGHT = 2_000;
 const MIN_ZOOM = 0.5;
-const MAX_ZOOM = 2;
+const MAX_ZOOM = 3;
 const PLANET_RADIUS = 13.524;
 const MAX_CONNECTION_DISTANCE = PLANET_RADIUS * 2 * 12;
 const MIN_PLANET_DISTANCE = PLANET_RADIUS * 5;
@@ -241,7 +268,9 @@ let planets = [];
 let connections = [];
 let routes = [];
 let particles = [];
+let nextParticleId = 1;
 let captureEffects = [];
+let collisionEffects = [];
 let drag = null;
 let pan = null;
 let pinch = null;
@@ -250,6 +279,15 @@ let lastTime = performance.now();
 let result = null;
 let statisticsRecorded = false;
 let gameState = "menu";
+let multiplayerSocket = null;
+let activeMultiplayerRoom = null;
+let multiplayerPlayerIndex = null;
+let multiplayerActive = false;
+let multiplayerScore = [0, 0];
+let multiplayerRound = 0;
+let multiplayerRematchReady = [];
+let multiplayerCountdownEndsAt = 0;
+let installPromptEvent = null;
 let settings = loadSettings();
 let statistics = loadStatistics();
 let saveSlots = loadSaveSlots();
@@ -377,7 +415,9 @@ function createLevel(regenerate = true) {
 
   routes = [];
   particles = [];
+  nextParticleId = 1;
   captureEffects = [];
+  collisionEffects = [];
   drag = null;
   pan = null;
   pinch = null;
@@ -409,7 +449,7 @@ function gameTypeKey(configuration) {
 }
 
 function recordGameStatistics(outcome) {
-  if (statisticsRecorded || !currentGameConfiguration) return;
+  if (multiplayerActive || statisticsRecorded || !currentGameConfiguration) return;
   statisticsRecorded = true;
 
   const typeKey = gameTypeKey(currentGameConfiguration);
@@ -473,6 +513,7 @@ function createGameSnapshot() {
       computerDecisionTimer: planet.computerDecisionTimer,
       displayScale: planet.displayScale,
       sendFraction: planet.sendFraction,
+      upgradeEffect: planet.upgradeEffect,
     })),
     connections: connections.map((connection) => ({
       firstId: connection.first.id,
@@ -487,6 +528,7 @@ function createGameSnapshot() {
       reserve: route.reserve,
     })),
     particles: particles.map((particle) => ({
+      id: particle.id,
       sourceId: particle.source.id,
       targetId: particle.target.id,
       owner: particle.owner,
@@ -494,6 +536,7 @@ function createGameSnapshot() {
       progress: particle.progress,
     })),
     captureEffects: captureEffects.map((effect) => ({ ...effect })),
+    collisionEffects: collisionEffects.map((effect) => ({ ...effect })),
     camera: { ...camera },
     currentLevelLayout,
     computerPlans: [...computerPlans.values()].map((plan) => ({
@@ -546,6 +589,7 @@ function restoreGameSnapshot(snapshot) {
     planet.computerDecisionTimer = savedPlanet.computerDecisionTimer;
     planet.displayScale = savedPlanet.displayScale ?? 1;
     planet.sendFraction = savedPlanet.sendFraction ?? 1;
+    planet.upgradeEffect = savedPlanet.upgradeEffect ?? 0;
     return planet;
   });
 
@@ -566,8 +610,10 @@ function restoreGameSnapshot(snapshot) {
       reserve: route.reserve,
     }))
     .filter((route) => route.source && route.target);
+  nextParticleId = 1;
   particles = (snapshot.particles ?? [])
     .map((particle) => ({
+      id: particle.id ?? nextParticleId++,
       source: planetsById.get(particle.sourceId),
       target: planetsById.get(particle.targetId),
       owner: particle.owner,
@@ -575,7 +621,14 @@ function restoreGameSnapshot(snapshot) {
       progress: particle.progress,
     }))
     .filter((particle) => particle.source && particle.target);
+  nextParticleId = Math.max(
+    nextParticleId,
+    ...particles.map((particle) => particle.id + 1),
+  );
   captureEffects = (snapshot.captureEffects ?? []).map((effect) => ({
+    ...effect,
+  }));
+  collisionEffects = (snapshot.collisionEffects ?? []).map((effect) => ({
     ...effect,
   }));
 
@@ -623,6 +676,65 @@ function restoreGameSnapshot(snapshot) {
   syncSettingsControls();
   saveSettings();
   return true;
+}
+
+function applyMultiplayerState(state) {
+  const planetsById = new Map(planets.map((planet) => [planet.id, planet]));
+
+  for (const savedPlanet of state.planets ?? []) {
+    const planet = planetsById.get(savedPlanet.id);
+    if (!planet) continue;
+    planet.owner = savedPlanet.owner;
+    planet.energy = savedPlanet.energy;
+    planet.type = savedPlanet.type;
+    planet.shield = savedPlanet.shield;
+    planet.maxShield = savedPlanet.maxShield;
+    planet.shieldTimer = savedPlanet.shieldTimer;
+    planet.sendFraction = savedPlanet.sendFraction ?? 1;
+    planet.upgradeEffect = savedPlanet.upgradeEffect ?? 0;
+  }
+
+  routes = (state.routes ?? [])
+    .map((route) => ({
+      source: planetsById.get(route.sourceId),
+      target: planetsById.get(route.targetId),
+      timer: route.timer,
+      purpose: route.purpose,
+      repeat: route.repeat,
+      reserve: route.reserve,
+    }))
+    .filter((route) => route.source && route.target);
+  const existingParticles = new Map(
+    particles.map((particle) => [particle.id, particle]),
+  );
+  particles = (state.particles ?? [])
+    .map((particle) => {
+      const existingParticle = existingParticles.get(particle.id);
+      return {
+        id: particle.id,
+        source: planetsById.get(particle.sourceId),
+        target: planetsById.get(particle.targetId),
+        owner: particle.owner,
+        amount: particle.amount,
+        progress: existingParticle
+          ? Math.max(existingParticle.progress, particle.progress)
+          : particle.progress,
+      };
+    })
+    .filter((particle) => particle.source && particle.target);
+  captureEffects = (state.captureEffects ?? []).map((effect) => ({ ...effect }));
+  collisionEffects = (state.collisionEffects ?? []).map((effect) => ({ ...effect }));
+
+  if (selectedPlanet?.owner !== localPlayerOwner()) selectPlanet(null);
+  else if (selectedPlanet) updatePlanetRouteButton();
+
+  if (state.result) {
+    result = multiplayerPlayerIndex === 0
+      ? state.result
+      : state.result === "Победа!"
+        ? "Поражение"
+        : "Победа!";
+  }
 }
 
 function renderSaveSlot(button, snapshot, canSave) {
@@ -975,15 +1087,17 @@ function createPlanet(id, x, y, radius, owner, energy, type) {
     computerDecisionTimer: Math.random() * computerDecisionDelay(),
     displayScale: 1,
     sendFraction: 1,
+    upgradeEffect: 0,
   };
 }
 
-function setPlanetType(planet, type) {
+function setPlanetType(planet, type, animate = false) {
   const maxShield = PLANET_TYPES[type].maxShield;
   planet.type = type;
   planet.maxShield = maxShield;
   planet.shield = 0;
   planet.shieldTimer = 0;
+  if (animate) planet.upgradeEffect = 1;
 }
 
 function planetAt(x, y) {
@@ -999,6 +1113,72 @@ function areConnected(first, second) {
       (connection.first === first && connection.second === second) ||
       (connection.first === second && connection.second === first),
   );
+}
+
+function applyPlayerCommand(command, owner) {
+  if (command.type === "start_route") {
+    const source = planets.find((planet) => planet.id === command.sourceId);
+    const target = planets.find((planet) => planet.id === command.targetId);
+    if (!source || !target || source.owner !== owner || !areConnected(source, target)) {
+      return;
+    }
+
+    routes = routes.filter((route) => route.source !== source);
+    const route = { source, target, timer: 0 };
+    routes.push(route);
+    sendRouteEnergy(route);
+    if (selectedPlanet === source) updatePlanetRouteButton();
+    return;
+  }
+
+  if (command.type === "stop_route") {
+    const source = planets.find((planet) => planet.id === command.sourceId);
+    if (source?.owner === owner) {
+      routes = routes.filter((route) => route.source !== source);
+      if (selectedPlanet === source) updatePlanetRouteButton();
+    }
+    return;
+  }
+
+  if (command.type === "set_fraction") {
+    const planet = planets.find((current) => current.id === command.planetId);
+    if (
+      planet?.owner === owner &&
+      [1, 0.5, 0.25].includes(command.fraction)
+    ) {
+      planet.sendFraction = command.fraction;
+      if (selectedPlanet === planet) updateSendFractionButton();
+    }
+    return;
+  }
+
+  if (command.type === "set_planet_type") {
+    const planet = planets.find((current) => current.id === command.planetId);
+    if (
+      planet?.owner !== owner ||
+      !["economic", "defensive"].includes(command.planetType) ||
+      planet.type === command.planetType ||
+      planet.energy < TYPE_CHANGE_COST
+    ) {
+      return;
+    }
+
+    planet.energy -= TYPE_CHANGE_COST;
+    setPlanetType(planet, command.planetType, true);
+    if (selectedPlanet === planet) updatePlanetTypeButtons();
+  }
+}
+
+function issueMultiplayerCommand(command) {
+  if (
+    multiplayerActive &&
+    multiplayerSocket?.readyState === WebSocket.OPEN
+  ) {
+    multiplayerSocket.send(JSON.stringify({ type: "command", command }));
+    return;
+  }
+
+  applyPlayerCommand(command, localPlayerOwner());
 }
 
 function directionalTarget(source, x, y) {
@@ -1040,13 +1220,27 @@ function pointerPosition(event) {
   };
 }
 
+function localPlayerOwner() {
+  return multiplayerActive && multiplayerPlayerIndex === 1
+    ? "enemy1"
+    : "player";
+}
+
+function isComputerOwner(owner) {
+  return (
+    owner.startsWith("enemy") &&
+    !(multiplayerActive && owner === "enemy1")
+  );
+}
+
 function selectPlanet(planet) {
-  selectedPlanet = planet?.owner === "player" ? planet : null;
+  selectedPlanet = planet?.owner === localPlayerOwner() ? planet : null;
   planetPanel.hidden = !selectedPlanet;
 
   if (selectedPlanet) {
     updatePlanetTypeButtons();
     updateSendFractionButton();
+    updatePlanetRouteButton();
     positionPlanetPanel();
   }
 }
@@ -1073,21 +1267,38 @@ function updateSendFractionButton() {
   sendFractionButton.title = `Отправляется: ${labels[fraction]}`;
 }
 
+function updatePlanetRouteButton() {
+  const hasRoute = Boolean(
+    selectedPlanet && routes.some((route) => route.source === selectedPlanet),
+  );
+  stopRouteButton.disabled = !hasRoute;
+}
+
 sendFractionButton.addEventListener("click", () => {
   if (!selectedPlanet) return;
   const fractions = [1, 0.5, 0.25];
   const currentIndex = fractions.indexOf(selectedPlanet.sendFraction);
-  selectedPlanet.sendFraction = fractions[(currentIndex + 1) % fractions.length];
-  updateSendFractionButton();
+  issueMultiplayerCommand({
+    type: "set_fraction",
+    planetId: selectedPlanet.id,
+    fraction: fractions[(currentIndex + 1) % fractions.length],
+  });
+});
+
+stopRouteButton.addEventListener("click", () => {
+  if (!selectedPlanet) return;
+  issueMultiplayerCommand({ type: "stop_route", sourceId: selectedPlanet.id });
+  updatePlanetRouteButton();
 });
 
 for (const button of planetTypeButtons) {
   button.addEventListener("click", () => {
     if (!selectedPlanet || selectedPlanet.energy < TYPE_CHANGE_COST) return;
-
-    selectedPlanet.energy -= TYPE_CHANGE_COST;
-    setPlanetType(selectedPlanet, button.dataset.planetType);
-    updatePlanetTypeButtons();
+    issueMultiplayerCommand({
+      type: "set_planet_type",
+      planetId: selectedPlanet.id,
+      planetType: button.dataset.planetType,
+    });
   });
 }
 
@@ -1123,6 +1334,7 @@ canvas.addEventListener("pointerdown", (event) => {
   closeHelpPanel();
 
   if (gameState !== "playing" || result) return;
+  if (multiplayerActive && performance.now() < multiplayerCountdownEndsAt) return;
   const point = pointerPosition(event);
   activePointers.set(event.pointerId, { screenX: point.screenX, screenY: point.screenY });
 
@@ -1134,11 +1346,11 @@ canvas.addEventListener("pointerdown", (event) => {
 
   const source = planetAt(point.x, point.y);
 
-  if (source?.owner === "player") {
+  if (source?.owner === localPlayerOwner()) {
     selectPlanet(source);
     drag = { source, x: point.x, y: point.y, target: null };
     canvas.setPointerCapture(event.pointerId);
-  } else if (!source) {
+  } else {
     selectPlanet(null);
     pan = {
       pointerId: event.pointerId,
@@ -1206,10 +1418,11 @@ canvas.addEventListener("pointerup", (event) => {
     );
 
     if (!existing) {
-      routes = routes.filter((route) => route.source !== drag.source);
-      const route = { source: drag.source, target, timer: 0 };
-      routes.push(route);
-      sendRouteEnergy(route);
+      issueMultiplayerCommand({
+        type: "start_route",
+        sourceId: drag.source.id,
+        targetId: target.id,
+      });
     }
   }
 
@@ -1240,8 +1453,8 @@ canvas.addEventListener("dblclick", (event) => {
   const point = pointerPosition(event);
   const planet = planetAt(point.x, point.y);
 
-  if (planet?.owner === "player") {
-    routes = routes.filter((route) => route.source !== planet);
+  if (planet?.owner === localPlayerOwner()) {
+    issueMultiplayerCommand({ type: "stop_route", sourceId: planet.id });
   }
 });
 
@@ -1329,11 +1542,330 @@ function renderStatistics() {
   }
 }
 
+function setMultiplayerStatus(message, isError = false) {
+  multiplayerStatus.textContent = message;
+  multiplayerStatus.classList.toggle("is-error", isError);
+}
+
+function updateMultiplayerResultUI() {
+  if (!multiplayerActive) {
+    for (const button of [newGameButton, defeatNewGameButton]) {
+      button.textContent = "Новая игра";
+      button.disabled = false;
+    }
+  }
+  const localScore = multiplayerScore[multiplayerPlayerIndex] ?? 0;
+  const opponentScore = multiplayerScore[multiplayerPlayerIndex === 0 ? 1 : 0] ?? 0;
+  const scoreText = `${localScore} : ${opponentScore}`;
+  for (const element of [victoryScore, defeatScore]) {
+    element.hidden = !multiplayerActive;
+    element.textContent = `Я ${scoreText} соперник`;
+  }
+  const localReady = multiplayerRematchReady.includes(multiplayerPlayerIndex);
+  const otherReady = multiplayerRematchReady.some(
+    (playerIndex) => playerIndex !== multiplayerPlayerIndex,
+  );
+  const status = localReady
+    ? "Ожидаем соперника…"
+    : otherReady
+      ? "Соперник предлагает реванш"
+      : "";
+  for (const element of [victoryRematchStatus, defeatRematchStatus]) {
+    element.hidden = !multiplayerActive || !status;
+    element.textContent = status;
+  }
+  for (const button of [newGameButton, defeatNewGameButton]) {
+    if (!multiplayerActive) continue;
+    button.textContent = localReady ? "Готов ✓" : "Реванш";
+    button.disabled = localReady;
+  }
+}
+
+function resetMultiplayerRoom() {
+  activeMultiplayerRoom = null;
+  multiplayerPlayerIndex = null;
+  multiplayerScore = [0, 0];
+  multiplayerRound = 0;
+  multiplayerRematchReady = [];
+  multiplayerActions.hidden = false;
+  multiplayerRoom.hidden = true;
+  multiplayerStartButton.hidden = true;
+  multiplayerSettings.classList.remove("is-locked");
+  multiplayerRoomCode.textContent = "—";
+  multiplayerPlayers.textContent = "Ожидаем второго игрока…";
+  createRoomButton.disabled = false;
+  joinRoomButton.disabled = false;
+}
+
+function handleMultiplayerMessage(event) {
+  let message;
+  try {
+    message = JSON.parse(event.data);
+  } catch {
+    return;
+  }
+
+  if (message.type === "error") {
+    if (multiplayerActive) {
+      window.alert(message.message);
+      leaveMultiplayerMenu();
+      return;
+    }
+    createRoomButton.disabled = false;
+    joinRoomButton.disabled = false;
+    setMultiplayerStatus(message.message, true);
+    return;
+  }
+
+  if (message.type === "room_joined") {
+    activeMultiplayerRoom = message.roomCode;
+    multiplayerPlayerIndex = message.playerIndex;
+    multiplayerScore = message.score ?? [0, 0];
+    multiplayerRound = message.round ?? 0;
+    multiplayerActions.hidden = true;
+    multiplayerRoom.hidden = false;
+    multiplayerRoomCode.textContent = message.roomCode;
+    multiplayerPlayers.textContent = message.players === 2
+      ? "Второй игрок подключён. Комната готова."
+      : "Ожидаем второго игрока…";
+    multiplayerStartButton.hidden = !(
+      message.playerIndex === 0 && message.players === 2
+    );
+    multiplayerSettings.classList.toggle(
+      "is-locked",
+      message.playerIndex !== 0,
+    );
+    setMultiplayerStatus(
+      message.playerIndex === 0
+        ? "Передай код второму игроку."
+        : "Ты подключился к комнате.",
+    );
+    return;
+  }
+
+  if (message.type === "room_state" && message.roomCode === activeMultiplayerRoom) {
+    if (multiplayerActive && message.players < 2) {
+      window.alert("Второй игрок покинул игру.");
+      leaveMultiplayerMenu();
+      return;
+    }
+    multiplayerPlayers.textContent = message.players === 2
+      ? "Второй игрок подключён. Комната готова."
+      : "Ожидаем второго игрока…";
+    multiplayerScore = message.score ?? multiplayerScore;
+    multiplayerRound = message.round ?? multiplayerRound;
+    multiplayerRematchReady = message.rematchReady ?? multiplayerRematchReady;
+    setMultiplayerStatus(
+      message.players === 2
+        ? "Оба игрока в комнате."
+        : "Передай код второму игроку.",
+    );
+    multiplayerStartButton.hidden = !(
+      multiplayerPlayerIndex === 0 && message.players === 2
+    );
+    return;
+  }
+
+  if (message.type === "game_started") {
+    if (!restoreGameSnapshot(message.snapshot)) return;
+    multiplayerScore = message.score ?? multiplayerScore;
+    multiplayerRound = message.round ?? multiplayerRound;
+    multiplayerRematchReady = [];
+    multiplayerCountdownEndsAt = performance.now() + Math.max(
+      0,
+      (message.startsAt ?? Date.now()) - Date.now(),
+    );
+    multiplayerActive = true;
+    enterMultiplayerGame();
+    const localPlanet = planets.find(
+      (planet) => planet.owner === localPlayerOwner(),
+    );
+    if (localPlanet) centerCameraOn(localPlanet);
+    return;
+  }
+
+  if (message.type === "match_finished") {
+    multiplayerScore = message.score ?? multiplayerScore;
+    multiplayerRound = message.round ?? multiplayerRound;
+    updateMultiplayerResultUI();
+    return;
+  }
+
+  if (message.type === "rematch_state" && multiplayerActive) {
+    multiplayerScore = message.score ?? multiplayerScore;
+    multiplayerRound = message.round ?? multiplayerRound;
+    multiplayerRematchReady = message.ready ?? [];
+    updateMultiplayerResultUI();
+    return;
+  }
+
+  if (
+    message.type === "game_state" &&
+    multiplayerActive
+  ) {
+    applyMultiplayerState(message.state);
+  }
+}
+
+function connectMultiplayer() {
+  if (multiplayerSocket?.readyState === WebSocket.OPEN) {
+    return Promise.resolve(multiplayerSocket);
+  }
+
+  multiplayerSocket?.close();
+  const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+  const socket = new WebSocket(`${protocol}//${location.host}`);
+  multiplayerSocket = socket;
+
+  return new Promise((resolve, reject) => {
+    socket.addEventListener("open", () => resolve(socket), { once: true });
+    socket.addEventListener("message", handleMultiplayerMessage);
+    socket.addEventListener(
+      "error",
+      () => reject(new Error("Не удалось подключиться к серверу.")),
+      { once: true },
+    );
+    socket.addEventListener("close", () => {
+      if (multiplayerSocket !== socket) return;
+      multiplayerSocket = null;
+      if (activeMultiplayerRoom) {
+        resetMultiplayerRoom();
+        setMultiplayerStatus("Соединение с комнатой потеряно.", true);
+      }
+    });
+  });
+}
+
+async function sendMultiplayerLobbyMessage(message) {
+  createRoomButton.disabled = true;
+  joinRoomButton.disabled = true;
+  setMultiplayerStatus("Подключаемся…");
+
+  try {
+    const socket = await connectMultiplayer();
+    socket.send(JSON.stringify(message));
+  } catch {
+    createRoomButton.disabled = false;
+    joinRoomButton.disabled = false;
+    setMultiplayerStatus(
+      "Сетевой сервер недоступен. Запусти multiplayer-сервер на Mac.",
+      true,
+    );
+  }
+}
+
+function enterMultiplayerGame() {
+  gameState = "playing";
+  result = null;
+  statisticsRecorded = true;
+  menuOverlay.hidden = true;
+  multiplayerMenu.hidden = true;
+  gameMenuButton.hidden = true;
+  leaveMultiplayerGameButton.hidden = false;
+  quickPauseButton.disabled = true;
+  speedSlider.disabled = true;
+  document.body.classList.add("is-multiplayer");
+  newGameButton.disabled = false;
+  newGameButton.textContent = "Реванш";
+  defeatNewGameButton.disabled = false;
+  defeatNewGameButton.textContent = "Реванш";
+  multiplayerStartButton.disabled = false;
+  multiplayerStartButton.textContent = "Начать игру";
+  selectPlanet(null);
+  showQuickPauseState(false);
+  lastTime = performance.now();
+}
+
+function startNewGameAfterResult() {
+  if (!multiplayerActive) {
+    createLevel();
+    resumeGame();
+    return;
+  }
+
+  if (multiplayerSocket?.readyState === WebSocket.OPEN) {
+    multiplayerSocket.send(JSON.stringify({ type: "rematch_ready" }));
+    multiplayerRematchReady = [
+      ...new Set([...multiplayerRematchReady, multiplayerPlayerIndex]),
+    ];
+    updateMultiplayerResultUI();
+  }
+}
+
+function exitAfterResult() {
+  if (multiplayerActive) {
+    leaveMultiplayerMenu();
+    return;
+  }
+  createLevel();
+  showStartMenu();
+}
+
+function startMultiplayerGame() {
+  if (
+    multiplayerPlayerIndex !== 0 ||
+    multiplayerSocket?.readyState !== WebSocket.OPEN
+  ) {
+    return;
+  }
+
+  multiplayerStartButton.disabled = true;
+  multiplayerStartButton.textContent = "Создаём карту…";
+  multiplayerSocket.send(JSON.stringify({
+    type: "start_game",
+    settings: {
+      mapSize: selectedMapSize,
+      mountains: settings.mountains,
+      playerColor: settings.playerColor,
+    },
+  }));
+}
+
+function showMultiplayerMenu() {
+  gameState = "menu";
+  resetMultiplayerRoom();
+  multiplayerMapSizeSlider.value = String(
+    MAP_SIZE_OPTIONS.indexOf(selectedMapSize),
+  );
+  multiplayerMapSizeSlider.setAttribute(
+    "aria-valuetext",
+    MAP_SIZE_LABELS[MAP_SIZE_OPTIONS.indexOf(selectedMapSize)],
+  );
+  multiplayerMountainsCheckbox.checked = settings.mountains;
+  setMultiplayerStatus("Создай комнату или введи код друга.");
+  menuOverlay.hidden = false;
+  startMenu.hidden = true;
+  multiplayerMenu.hidden = false;
+  loadGameMenu.hidden = true;
+  statisticsMenu.hidden = true;
+  pauseMenu.hidden = true;
+  saveGameMenu.hidden = true;
+  victoryMenu.hidden = true;
+  defeatMenu.hidden = true;
+  gameMenuButton.hidden = true;
+  closeHelpPanel();
+}
+
+function leaveMultiplayerMenu() {
+  multiplayerActive = false;
+  activeMultiplayerRoom = null;
+  multiplayerSocket?.close();
+  multiplayerSocket = null;
+  multiplayerCountdownEndsAt = 0;
+  multiplayerCountdown.hidden = true;
+  quickPauseButton.disabled = false;
+  speedSlider.disabled = false;
+  document.body.classList.remove("is-multiplayer");
+  leaveMultiplayerGameButton.hidden = true;
+  showStartMenu();
+}
+
 function showLoadGameMenu() {
   gameState = "menu";
   renderSaveSlots();
   menuOverlay.hidden = false;
   startMenu.hidden = true;
+  multiplayerMenu.hidden = true;
   loadGameMenu.hidden = false;
   statisticsMenu.hidden = true;
   pauseMenu.hidden = true;
@@ -1349,6 +1881,7 @@ function showStatisticsMenu() {
   renderStatistics();
   menuOverlay.hidden = false;
   startMenu.hidden = true;
+  multiplayerMenu.hidden = true;
   loadGameMenu.hidden = true;
   statisticsMenu.hidden = false;
   pauseMenu.hidden = true;
@@ -1363,6 +1896,7 @@ function showStartMenu() {
   gameState = "menu";
   menuOverlay.hidden = false;
   startMenu.hidden = false;
+  multiplayerMenu.hidden = true;
   loadGameMenu.hidden = true;
   statisticsMenu.hidden = true;
   pauseMenu.hidden = true;
@@ -1370,6 +1904,7 @@ function showStartMenu() {
   victoryMenu.hidden = true;
   defeatMenu.hidden = true;
   gameMenuButton.hidden = true;
+  leaveMultiplayerGameButton.hidden = true;
   selectPlanet(null);
   closeHelpPanel();
   showQuickPauseState(false);
@@ -1380,6 +1915,7 @@ function showPauseMenu() {
   gameState = "paused";
   menuOverlay.hidden = false;
   startMenu.hidden = true;
+  multiplayerMenu.hidden = true;
   loadGameMenu.hidden = true;
   statisticsMenu.hidden = true;
   pauseMenu.hidden = false;
@@ -1396,6 +1932,7 @@ function showSaveGameMenu() {
   renderSaveSlots();
   menuOverlay.hidden = false;
   startMenu.hidden = true;
+  multiplayerMenu.hidden = true;
   loadGameMenu.hidden = true;
   statisticsMenu.hidden = true;
   pauseMenu.hidden = true;
@@ -1415,6 +1952,7 @@ function showVictoryMenu() {
   victoryTitle.textContent = result || "Победа!";
   menuOverlay.hidden = false;
   startMenu.hidden = true;
+  multiplayerMenu.hidden = true;
   loadGameMenu.hidden = true;
   statisticsMenu.hidden = true;
   pauseMenu.hidden = true;
@@ -1422,15 +1960,18 @@ function showVictoryMenu() {
   victoryMenu.hidden = false;
   defeatMenu.hidden = true;
   gameMenuButton.hidden = true;
+  leaveMultiplayerGameButton.hidden = true;
   selectPlanet(null);
   closeHelpPanel();
   showQuickPauseState(false);
+  updateMultiplayerResultUI();
 }
 
 function showDefeatMenu() {
   gameState = "defeat";
   menuOverlay.hidden = false;
   startMenu.hidden = true;
+  multiplayerMenu.hidden = true;
   loadGameMenu.hidden = true;
   statisticsMenu.hidden = true;
   pauseMenu.hidden = true;
@@ -1438,9 +1979,11 @@ function showDefeatMenu() {
   victoryMenu.hidden = true;
   defeatMenu.hidden = false;
   gameMenuButton.hidden = true;
+  leaveMultiplayerGameButton.hidden = true;
   selectPlanet(null);
   closeHelpPanel();
   showQuickPauseState(false);
+  updateMultiplayerResultUI();
 }
 
 function syncSettingsControls() {
@@ -1485,6 +2028,24 @@ mapSizeSlider.addEventListener("input", () => {
   selectedMapSize = MAP_SIZE_OPTIONS[index];
   settings.mapSize = selectedMapSize;
   mapSizeSlider.setAttribute("aria-valuetext", MAP_SIZE_LABELS[index]);
+  saveSettings();
+});
+
+multiplayerMapSizeSlider.addEventListener("input", () => {
+  const index = Number(multiplayerMapSizeSlider.value);
+  selectedMapSize = MAP_SIZE_OPTIONS[index];
+  settings.mapSize = selectedMapSize;
+  mapSizeSlider.value = String(index);
+  multiplayerMapSizeSlider.setAttribute(
+    "aria-valuetext",
+    MAP_SIZE_LABELS[index],
+  );
+  saveSettings();
+});
+
+multiplayerMountainsCheckbox.addEventListener("change", () => {
+  settings.mountains = multiplayerMountainsCheckbox.checked;
+  mountainsCheckbox.checked = settings.mountains;
   saveSettings();
 });
 
@@ -1543,6 +2104,30 @@ startGameButton.addEventListener("click", () => {
   createLevel();
   resumeGame();
 });
+multiplayerButton.addEventListener("click", showMultiplayerMenu);
+createRoomButton.addEventListener("click", () => {
+  sendMultiplayerLobbyMessage({ type: "create_room" });
+});
+joinRoomButton.addEventListener("click", () => {
+  const roomCode = roomCodeInput.value.trim();
+  if (roomCode.length !== 4) {
+    setMultiplayerStatus("Введи четырёхзначный код комнаты.", true);
+    return;
+  }
+  sendMultiplayerLobbyMessage({ type: "join_room", roomCode });
+});
+roomCodeInput.addEventListener("input", () => {
+  roomCodeInput.value = roomCodeInput.value.replace(/\D/g, "").slice(0, 4);
+});
+roomCodeInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") joinRoomButton.click();
+});
+multiplayerBackButton.addEventListener("click", leaveMultiplayerMenu);
+multiplayerStartButton.addEventListener("click", startMultiplayerGame);
+leaveMultiplayerGameButton.addEventListener("click", () => {
+  const confirmed = window.confirm("Покинуть сетевую игру?");
+  if (confirmed) leaveMultiplayerMenu();
+});
 loadGameButton.addEventListener("click", showLoadGameMenu);
 loadGameBackButton.addEventListener("click", showStartMenu);
 loadSlotButtons.forEach((button, index) => {
@@ -1576,22 +2161,10 @@ exitToMenuButton.addEventListener("click", () => {
   createLevel();
   showStartMenu();
 });
-newGameButton.addEventListener("click", () => {
-  createLevel();
-  resumeGame();
-});
-victoryExitButton.addEventListener("click", () => {
-  createLevel();
-  showStartMenu();
-});
-defeatNewGameButton.addEventListener("click", () => {
-  createLevel();
-  resumeGame();
-});
-defeatExitButton.addEventListener("click", () => {
-  createLevel();
-  showStartMenu();
-});
+newGameButton.addEventListener("click", startNewGameAfterResult);
+victoryExitButton.addEventListener("click", exitAfterResult);
+defeatNewGameButton.addEventListener("click", startNewGameAfterResult);
+defeatExitButton.addEventListener("click", exitAfterResult);
 quickPauseButton.addEventListener("click", () => {
   if (gameState === "playing") {
     gameState = "quickPaused";
@@ -1628,6 +2201,30 @@ helpButton.addEventListener("click", () => {
 });
 window.addEventListener("resize", resize);
 
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();
+  installPromptEvent = event;
+  installAppButton.hidden = false;
+});
+
+window.addEventListener("appinstalled", () => {
+  installPromptEvent = null;
+  installAppButton.hidden = true;
+});
+
+installAppButton.addEventListener("click", async () => {
+  if (!installPromptEvent) return;
+  await installPromptEvent.prompt();
+  installPromptEvent = null;
+  installAppButton.hidden = true;
+});
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+
 function sendRouteEnergy(route) {
   const availableEnergy = Math.max(
     0,
@@ -1635,7 +2232,9 @@ function sendRouteEnergy(route) {
   );
   if (availableEnergy < 1 || route.source.owner === "neutral") return;
 
-  const fraction = route.source.owner === "player"
+  const fraction =
+    route.source.owner === "player" ||
+    (multiplayerActive && route.source.owner === "enemy1")
     ? route.source.sendFraction
     : 1;
   const amount = Math.min(
@@ -1645,6 +2244,7 @@ function sendRouteEnergy(route) {
 
   route.source.energy -= amount;
   particles.push({
+    id: nextParticleId++,
     source: route.source,
     target: route.target,
     owner: route.source.owner,
@@ -1678,7 +2278,23 @@ function resolveParticleCollisions() {
       if (!areOppositeParticles(first, second)) continue;
       if (first.progress + second.progress < 1) continue;
 
-      const difference = first.amount - second.amount;
+      const firstAmount = first.amount;
+      const secondAmount = second.amount;
+      const difference = firstAmount - secondAmount;
+      const firstX = first.source.x + (first.target.x - first.source.x) * first.progress;
+      const firstY = first.source.y + (first.target.y - first.source.y) * first.progress;
+      const secondX = second.source.x + (second.target.x - second.source.x) * second.progress;
+      const secondY = second.source.y + (second.target.y - second.source.y) * second.progress;
+      collisionEffects.push({
+        x: (firstX + secondX) / 2,
+        y: (firstY + secondY) / 2,
+        firstOwner: first.owner,
+        secondOwner: second.owner,
+        firstAmount,
+        secondAmount,
+        result: Math.abs(difference),
+        progress: 0,
+      });
       if (Math.abs(difference) < 0.001) {
         destroyedParticles.add(first);
         destroyedParticles.add(second);
@@ -1739,6 +2355,22 @@ function connectedPlanets(source) {
   }
 
   return neighbors;
+}
+
+function alliedConnectionOwner(connection) {
+  const { first, second } = connection;
+  if (first.owner === "neutral" || first.owner !== second.owner) return null;
+
+  const hasOnlyAlliedNeighbors = (planet) => {
+    const neighbors = connectedPlanets(planet);
+    return neighbors.length > 0 && neighbors.every(
+      (neighbor) => neighbor.owner === planet.owner,
+    );
+  };
+
+  return hasOnlyAlliedNeighbors(first) || hasOnlyAlliedNeighbors(second)
+    ? first.owner
+    : null;
 }
 
 function computerDecisionDelay() {
@@ -1804,7 +2436,7 @@ function upgradeComputerPlanet(planet, type) {
   }
 
   planet.energy -= TYPE_CHANGE_COST;
-  setPlanetType(planet, type);
+  setPlanetType(planet, type, true);
   return true;
 }
 
@@ -2116,7 +2748,7 @@ function updateComputerPlayers(delta) {
   const readyPlanets = new Set();
 
   for (const planet of planets) {
-    if (!planet.owner.startsWith("enemy")) continue;
+    if (!isComputerOwner(planet.owner)) continue;
 
     planet.computerDecisionTimer -= delta;
     if (planet.computerDecisionTimer > 0) continue;
@@ -2128,7 +2760,7 @@ function updateComputerPlayers(delta) {
   const computerOwners = [
     ...new Set(
       planets
-        .filter((planet) => planet.owner.startsWith("enemy"))
+        .filter((planet) => isComputerOwner(planet.owner))
         .map((planet) => planet.owner),
     ),
   ];
@@ -2356,6 +2988,10 @@ function update(delta) {
     effect.progress += delta * 1.35;
   }
   captureEffects = captureEffects.filter((effect) => effect.progress < 1);
+  for (const effect of collisionEffects) {
+    effect.progress += delta * 1.8;
+  }
+  collisionEffects = collisionEffects.filter((effect) => effect.progress < 1);
 
   if (result) {
     if (captureEffects.length === 0) {
@@ -2365,10 +3001,36 @@ function update(delta) {
     return;
   }
 
+  if (multiplayerActive) {
+    for (const planet of planets) {
+      const targetScale = selectedPlanet === planet ? 1.1 : 1;
+      const scaleSpeed = Math.min(1, delta * 12);
+      planet.displayScale += (targetScale - planet.displayScale) * scaleSpeed;
+      planet.upgradeEffect = Math.max(0, planet.upgradeEffect - delta * 1.6);
+    }
+    for (const particle of particles) {
+      const distance = Math.hypot(
+        particle.target.x - particle.source.x,
+        particle.target.y - particle.source.y,
+      );
+      particle.progress = Math.min(
+        1,
+        particle.progress +
+          (ENERGY_TRAVEL_SPEED / distance) * delta * settings.speed,
+      );
+    }
+    if (selectedPlanet) {
+      updatePlanetTypeButtons();
+      positionPlanetPanel();
+    }
+    return;
+  }
+
   for (const planet of planets) {
     const targetScale = selectedPlanet === planet ? 1.1 : 1;
     const scaleSpeed = Math.min(1, delta * 12);
     planet.displayScale += (targetScale - planet.displayScale) * scaleSpeed;
+    planet.upgradeEffect = Math.max(0, planet.upgradeEffect - delta * 1.6);
 
     if (planet.owner !== "neutral") {
       const generation = STANDARD_GENERATION * PLANET_TYPES[planet.type].generationMultiplier;
@@ -2470,12 +3132,20 @@ function drawRouteDirection(route) {
   const angle = Math.atan2(to.y - from.y, to.x - from.x);
   const markerSize = PLANET_RADIUS * 0.45;
   const phase = (performance.now() / 1_200) % 1;
+  const pulse = (Math.sin(performance.now() / 220) + 1) / 2;
 
   context.save();
   context.strokeStyle = COLORS[route.source.owner];
   context.fillStyle = COLORS[route.source.owner];
-  context.globalAlpha = 0.58;
-  context.lineWidth = 2.2;
+  context.globalAlpha = 0.12 + pulse * 0.06;
+  context.lineWidth = 7;
+  context.beginPath();
+  context.moveTo(from.x, from.y);
+  context.lineTo(to.x, to.y);
+  context.stroke();
+
+  context.globalAlpha = 0.62;
+  context.lineWidth = 2.6;
   context.beginPath();
   context.moveTo(from.x, from.y);
   context.lineTo(to.x, to.y);
@@ -2548,6 +3218,57 @@ function ownerTextColor(owner) {
 
 function planetDisplayRadius(planet) {
   return planet.radius * planet.displayScale;
+}
+
+function drawPlanetSelection(planet) {
+  if (selectedPlanet !== planet) return;
+
+  const time = performance.now();
+  const pulse = (Math.sin(time / 170) + 1) / 2;
+  const planetRadius = planetDisplayRadius(planet);
+  const haloRadius = planetRadius + 5 + pulse * 2;
+  const orbitAngle = time / 320;
+  const dotX = planet.x + Math.cos(orbitAngle) * haloRadius;
+  const dotY = planet.y + Math.sin(orbitAngle) * haloRadius;
+
+  context.save();
+  context.globalAlpha = 0.12 + pulse * 0.1;
+  context.fillStyle = COLORS[planet.owner];
+  context.shadowColor = COLORS[planet.owner];
+  context.shadowBlur = 8 + pulse * 7;
+  context.beginPath();
+  context.arc(planet.x, planet.y, haloRadius, 0, Math.PI * 2);
+  context.fill();
+
+  context.globalAlpha = 0.9;
+  context.fillStyle = "#ffffff";
+  context.strokeStyle = COLORS[planet.owner];
+  context.lineWidth = 1.5;
+  context.shadowBlur = 4;
+  context.beginPath();
+  context.arc(dotX, dotY, 2.4, 0, Math.PI * 2);
+  context.fill();
+  context.stroke();
+  context.restore();
+}
+
+function drawPlanetUpgradeEffect(planet) {
+  if (planet.upgradeEffect <= 0) return;
+
+  const progress = 1 - planet.upgradeEffect;
+  const radius = planetDisplayRadius(planet) * (1.05 + progress * 1.5);
+  const color = planet.type === "economic" ? "#f4b740" : "#84adff";
+
+  context.save();
+  context.globalAlpha = planet.upgradeEffect;
+  context.strokeStyle = color;
+  context.lineWidth = 3 - progress * 1.5;
+  context.shadowColor = color;
+  context.shadowBlur = 10 * planet.upgradeEffect;
+  context.beginPath();
+  context.arc(planet.x, planet.y, radius, 0, Math.PI * 2);
+  context.stroke();
+  context.restore();
 }
 
 function drawShield(planet) {
@@ -2654,6 +3375,41 @@ function drawCaptureEffects() {
   }
 }
 
+function drawCollisionEffects() {
+  for (const effect of collisionEffects) {
+    const alpha = 1 - effect.progress;
+    const pulse = Math.sin(effect.progress * Math.PI);
+    const radius = PLANET_RADIUS * (0.65 + pulse * 0.7);
+    const firstColor = COLORS[effect.firstOwner] ?? COLORS.line;
+    const secondColor = COLORS[effect.secondOwner] ?? COLORS.line;
+
+    context.save();
+    context.globalAlpha = alpha * 0.9;
+    context.lineWidth = 3;
+    context.strokeStyle = firstColor;
+    context.beginPath();
+    context.arc(effect.x, effect.y, radius, -Math.PI / 2, Math.PI / 2);
+    context.stroke();
+    context.strokeStyle = secondColor;
+    context.beginPath();
+    context.arc(effect.x, effect.y, radius, Math.PI / 2, Math.PI * 1.5);
+    context.stroke();
+
+    if (effect.progress < 0.72) {
+      context.globalAlpha = Math.min(1, alpha * 1.6);
+      context.fillStyle = "#344054";
+      context.font = "700 10px -apple-system, BlinkMacSystemFont, sans-serif";
+      context.textAlign = "center";
+      context.textBaseline = "bottom";
+      const first = Math.floor(effect.firstAmount);
+      const second = Math.floor(effect.secondAmount);
+      const remainder = Math.floor(effect.result);
+      context.fillText(`${first} − ${second} → ${remainder}`, effect.x, effect.y - radius - 5);
+    }
+    context.restore();
+  }
+}
+
 function drawWorld() {
   context.fillStyle = "#f8fafc";
   context.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
@@ -2680,8 +3436,119 @@ function drawWorld() {
   context.strokeRect(1, 1, WORLD_WIDTH - 2, WORLD_HEIGHT - 2);
 }
 
+function minimapBounds() {
+  const padding = 90;
+  const minX = Math.max(0, Math.min(...planets.map((planet) => planet.x)) - padding);
+  const maxX = Math.min(WORLD_WIDTH, Math.max(...planets.map((planet) => planet.x)) + padding);
+  const minY = Math.max(0, Math.min(...planets.map((planet) => planet.y)) - padding);
+  const maxY = Math.min(WORLD_HEIGHT, Math.max(...planets.map((planet) => planet.y)) + padding);
+  return { minX, maxX, minY, maxY };
+}
+
+function drawMinimap() {
+  const shouldShow = ["playing", "quickPaused"].includes(gameState) && planets.length >= 15;
+  minimap.hidden = !shouldShow;
+  if (!shouldShow || minimap.classList.contains("is-collapsed")) return;
+
+  const width = minimapCanvas.width;
+  const height = minimapCanvas.height;
+  const bounds = minimapBounds();
+  const scaleX = width / Math.max(1, bounds.maxX - bounds.minX);
+  const scaleY = height / Math.max(1, bounds.maxY - bounds.minY);
+  const toX = (x) => (x - bounds.minX) * scaleX;
+  const toY = (y) => (y - bounds.minY) * scaleY;
+
+  minimapContext.clearRect(0, 0, width, height);
+  minimapContext.fillStyle = "#f8fafc";
+  minimapContext.fillRect(0, 0, width, height);
+
+  if (planets.length <= 100) {
+    minimapContext.strokeStyle = "rgb(152 162 179 / 34%)";
+    minimapContext.lineWidth = 0.8;
+    for (const connection of connections) {
+      minimapContext.beginPath();
+      minimapContext.moveTo(toX(connection.first.x), toY(connection.first.y));
+      minimapContext.lineTo(toX(connection.second.x), toY(connection.second.y));
+      minimapContext.stroke();
+    }
+  }
+
+  for (const planet of planets) {
+    minimapContext.fillStyle = COLORS[planet.owner];
+    minimapContext.beginPath();
+    minimapContext.arc(
+      toX(planet.x),
+      toY(planet.y),
+      planet.owner === "neutral" ? 1.6 : 2.8,
+      0,
+      Math.PI * 2,
+    );
+    minimapContext.fill();
+  }
+
+  const blink = (Math.sin(performance.now() / 120) + 1) / 2;
+  for (const effect of collisionEffects) {
+    minimapContext.globalAlpha = 0.45 + blink * 0.55;
+    minimapContext.strokeStyle = "#f79009";
+    minimapContext.lineWidth = 2;
+    minimapContext.beginPath();
+    minimapContext.arc(toX(effect.x), toY(effect.y), 5, 0, Math.PI * 2);
+    minimapContext.stroke();
+  }
+  minimapContext.globalAlpha = 1;
+
+  minimapContext.strokeStyle = "#344054";
+  minimapContext.lineWidth = 1.5;
+  minimapContext.fillStyle = "rgb(52 64 84 / 7%)";
+  const viewportX = toX(camera.x);
+  const viewportY = toY(camera.y);
+  const viewportWidth = (window.innerWidth / camera.zoom) * scaleX;
+  const viewportHeight = (window.innerHeight / camera.zoom) * scaleY;
+  minimapContext.fillRect(viewportX, viewportY, viewportWidth, viewportHeight);
+  minimapContext.strokeRect(viewportX, viewportY, viewportWidth, viewportHeight);
+}
+
+function moveCameraFromMinimap(event) {
+  if (minimap.classList.contains("is-collapsed") || planets.length === 0) return;
+  const rect = minimapCanvas.getBoundingClientRect();
+  const bounds = minimapBounds();
+  const normalizedX = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+  const normalizedY = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
+  const worldX = bounds.minX + normalizedX * (bounds.maxX - bounds.minX);
+  const worldY = bounds.minY + normalizedY * (bounds.maxY - bounds.minY);
+  camera.x = worldX - window.innerWidth / camera.zoom / 2;
+  camera.y = worldY - window.innerHeight / camera.zoom / 2;
+  clampCamera();
+}
+
+let minimapPointerActive = false;
+minimapCanvas.addEventListener("pointerdown", (event) => {
+  minimapPointerActive = true;
+  minimapCanvas.setPointerCapture(event.pointerId);
+  moveCameraFromMinimap(event);
+});
+minimapCanvas.addEventListener("pointermove", (event) => {
+  if (minimapPointerActive) moveCameraFromMinimap(event);
+});
+minimapCanvas.addEventListener("pointerup", () => {
+  minimapPointerActive = false;
+});
+minimapCanvas.addEventListener("pointercancel", () => {
+  minimapPointerActive = false;
+});
+minimapToggle.addEventListener("click", () => {
+  const collapsed = minimap.classList.toggle("is-collapsed");
+  minimapToggle.setAttribute("aria-expanded", String(!collapsed));
+  minimapToggle.setAttribute(
+    "aria-label",
+    collapsed ? "Развернуть мини-карту" : "Свернуть мини-карту",
+  );
+});
+
 function draw() {
   context.clearRect(0, 0, window.innerWidth, window.innerHeight);
+
+  drawMinimap();
 
   if (gameState === "menu") return;
 
@@ -2690,26 +3557,37 @@ function draw() {
   context.translate(-camera.x, -camera.y);
   drawWorld();
 
-  context.strokeStyle = COLORS.line;
-  context.lineWidth = 4.6;
   context.lineCap = "round";
   for (const connection of connections) {
+    const alliedOwner = alliedConnectionOwner(connection);
+    context.strokeStyle = alliedOwner ? COLORS[alliedOwner] : COLORS.line;
+    context.lineWidth = alliedOwner ? 4.8 : 4.6;
+    context.globalAlpha = alliedOwner ? 0.5 : 1;
     context.beginPath();
     context.moveTo(connection.first.x, connection.first.y);
     context.lineTo(connection.second.x, connection.second.y);
     context.stroke();
   }
+  context.globalAlpha = 1;
 
   for (const route of routes) {
     drawRouteDirection(route);
   }
 
   drawCaptureEffects();
+  drawCollisionEffects();
 
   if (drag) {
     const targetX = drag.target?.x ?? drag.x;
     const targetY = drag.target?.y ?? drag.y;
-    drawArrow(drag.source.x, drag.source.y, targetX, targetY, COLORS.player, 0.55);
+    drawArrow(
+      drag.source.x,
+      drag.source.y,
+      targetX,
+      targetY,
+      COLORS[localPlayerOwner()],
+      0.55,
+    );
   }
 
   for (const particle of particles) {
@@ -2732,6 +3610,8 @@ function draw() {
   for (const planet of planets) {
     const radius = planetDisplayRadius(planet);
     drawPlanetRouteTail(planet);
+    drawPlanetSelection(planet);
+    drawPlanetUpgradeEffect(planet);
     context.fillStyle = COLORS[planet.owner];
     context.beginPath();
     context.arc(planet.x, planet.y, radius, 0, Math.PI * 2);
@@ -2762,7 +3642,15 @@ function draw() {
 }
 
 function frame(now) {
-  const delta = Math.min((now - lastTime) / 1000, 0.05);
+  if (multiplayerActive && now < multiplayerCountdownEndsAt) {
+    multiplayerCountdown.hidden = false;
+    multiplayerCountdown.textContent = String(
+      Math.max(1, Math.ceil((multiplayerCountdownEndsAt - now) / 1000)),
+    );
+  } else {
+    multiplayerCountdown.hidden = true;
+  }
+  const delta = Math.min(Math.max(0, (now - lastTime) / 1000), 0.05);
   lastTime = now;
   update(delta);
   draw();

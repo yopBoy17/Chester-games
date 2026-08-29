@@ -334,12 +334,37 @@ body {
 .factory-item {
   position: absolute;
   z-index: 4;
-  width: 2%;
-  height: 2%;
+  width: 5.4%;
+  height: 5.4%;
   border-radius: 2px;
   pointer-events: none;
   transform: translate(-50%, -50%);
   transition: left 0.84s linear, top 0.84s linear, opacity 0.16s ease;
+  will-change: left, top;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+.factory-item img,
+.inventory-item-icon img,
+.inventory-detail-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.factory-item[class*="-powder"] img {
+  transform: scale(1.35);
+}
+
+.crusher-input-icon img,
+.crusher-output-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .factory-item--coal,
@@ -456,8 +481,10 @@ body {
   left: 50%;
   z-index: 25;
   display: none;
-  min-width: 150px;
+  min-width: 290px;
+  max-height: min(82vh, 760px);
   padding: 9px 11px;
+  overflow-y: auto;
   border: 1px solid #c9d0d5;
   border-radius: 12px;
   background: #f9fafb;
@@ -490,7 +517,7 @@ body {
 
 .machine-drop {
   display: grid;
-  grid-template-columns: 13px 1fr auto;
+  grid-template-columns: 32px 1fr auto;
   align-items: center;
   gap: 6px;
   padding-top: 5px;
@@ -508,9 +535,19 @@ body {
 }
 
 .resource-swatch {
-  width: 12px;
-  height: 12px;
-  border-radius: 2px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+.resource-swatch img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .machine-upgrade {
@@ -631,6 +668,9 @@ body {
   height: 42px;
   border-radius: 7px;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .14);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
 }
 
 .inventory-detail strong { color: #243142; }
@@ -688,6 +728,14 @@ body {
   aspect-ratio: 1;
   border-radius: 4px;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .14);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+.inventory-item-icon:has(img),
+.inventory-detail-preview:has(img) {
+  box-shadow: none;
 }
 
 .inventory-count { min-height: 1em; color: #526174; font-size: .75rem; font-weight: 800; }

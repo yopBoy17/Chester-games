@@ -75,6 +75,7 @@ const MAX_CRUSHER_LEVEL = 9;
 const FURNACE_UPGRADE_COST = 10;
 const MAX_FURNACE_LEVEL = 9;
 const MAX_CONVEYOR_ITEMS = 20;
+const CONVEYOR_TRAVEL_MS = 1_400;
 const inventoryItems = [
   { id: 'trash', name: 'Мусор', color: '#6f7780', sellPrice: 1 },
 ];
@@ -82,20 +83,31 @@ let inventory = { trash: 0 };
 let selectedInventoryItemId = null;
 let saveSyncTimer = null;
 const drillResources = [
-  { id: 'coal', name: 'Уголь', color: '#202329' },
-  { id: 'iron', name: 'Железная руда', color: '#73808b' },
-  { id: 'copper', name: 'Медная руда', color: '#c7784e' },
-  { id: 'tin', name: 'Оловянная руда', color: '#a7b7c2' },
-  { id: 'silver', name: 'Серебряная руда', color: '#d6dbe1' },
-  { id: 'gold', name: 'Золотая руда', color: '#e1b139' },
-  { id: 'tungsten', name: 'Вольфрамовая руда', color: '#48525b' },
-  { id: 'platinum', name: 'Платиновая руда', color: '#79a1a8' },
-  { id: 'diamond', name: 'Алмазная руда', color: '#59bdd8' },
+  { id: 'coal', name: 'Уголь', color: '#202329', image: 'assets/resources/coal.png' },
+  { id: 'iron', name: 'Железная руда', color: '#73808b', image: 'assets/resources/iron.png' },
+  { id: 'copper', name: 'Медная руда', color: '#c7784e', image: 'assets/resources/copper.png' },
+  { id: 'tin', name: 'Оловянная руда', color: '#a7b7c2', image: 'assets/resources/tin.png' },
+  { id: 'silver', name: 'Серебряная руда', color: '#d6dbe1', image: 'assets/resources/silver.png' },
+  { id: 'gold', name: 'Золотая руда', color: '#e1b139', image: 'assets/resources/gold.png' },
+  { id: 'tungsten', name: 'Вольфрамовая руда', color: '#48525b', image: 'assets/resources/tungsten.png' },
+  { id: 'platinum', name: 'Платиновая руда', color: '#79a1a8', image: 'assets/resources/platinum.png' },
+  { id: 'diamond', name: 'Алмазная руда', color: '#59bdd8', image: 'assets/resources/diamond.png' },
 ];
+const powderNames = {
+  iron: 'Железный порошок',
+  copper: 'Медный порошок',
+  tin: 'Оловянный порошок',
+  silver: 'Серебряный порошок',
+  gold: 'Золотой порошок',
+  tungsten: 'Вольфрамовый порошок',
+  platinum: 'Платиновый порошок',
+  diamond: 'Алмазный порошок',
+};
 const crushedResources = drillResources.slice(1).map((resource) => ({
   id: `${resource.id}-powder`,
-  name: resource.name.replace('ая руда', 'ый порошок').replace('яя руда', 'ий порошок').replace('овая руда', 'овый порошок'),
+  name: powderNames[resource.id],
   color: resource.color,
+  image: `assets/powders/${resource.id}-powder.png`,
 }));
 const smeltedResources = [
   { id: 'iron-ingot', name: 'Железный слиток', color: '#73808b' },
@@ -262,7 +274,7 @@ function renderInventory() {
   const slots = [...filledSlots, ...Array.from({ length: 100 - filledSlots.length }, () => null)];
   inventoryGrid.innerHTML = slots.map((item) => item
     ? `<button class="inventory-slot" type="button" data-item-id="${item.id}" title="${item.name}">
-        <i class="inventory-item-icon" style="background:${item.color}" aria-hidden="true"></i>
+        <i class="inventory-item-icon" style="background:${item.image ? 'transparent' : item.color}" aria-hidden="true">${item.image ? `<img src="${item.image}" alt="">` : ''}</i>
         <span class="inventory-count">${item.count}</span>
       </button>`
     : '<div class="inventory-slot is-empty" aria-label="Пустая ячейка"><span class="inventory-count"></span></div>')
@@ -280,7 +292,7 @@ function renderInventoryDetail() {
     return;
   }
   inventoryDetail.innerHTML = `
-    <i class="inventory-detail-preview" style="background:${item.color}" aria-hidden="true"></i>
+    <i class="inventory-detail-preview" style="background:${item.image ? 'transparent' : item.color}" aria-hidden="true">${item.image ? `<img src="${item.image}" alt="">` : ''}</i>
     <strong>${item.name}</strong>
     <span>Количество: ${count}</span>
     ${item.sellPrice > 0
@@ -640,9 +652,21 @@ function pickDrillResource(level) {
   }) ?? drillResources[0];
 }
 
-function setResourcePosition(resource, cell) {
-  resource.element.style.left = `${((cell.x + 0.5) / MAP_SIZE) * 100}%`;
-  resource.element.style.top = `${((cell.y + 0.5) / MAP_SIZE) * 100}%`;
+function getResourcePoint(cell, entryFrom = null) {
+  const entryOffset = 0.08;
+  let offsetX = 0.5;
+  let offsetY = 0.5;
+  if (entryFrom === 'left') offsetX = entryOffset;
+  if (entryFrom === 'right') offsetX = 1 - entryOffset;
+  if (entryFrom === 'top') offsetY = entryOffset;
+  if (entryFrom === 'bottom') offsetY = 1 - entryOffset;
+  return { x: cell.x + offsetX, y: cell.y + offsetY };
+}
+
+function setResourcePosition(resource, cell, entryFrom = null) {
+  const point = getResourcePoint(cell, entryFrom);
+  resource.element.style.left = `${(point.x / MAP_SIZE) * 100}%`;
+  resource.element.style.top = `${(point.y / MAP_SIZE) * 100}%`;
 }
 
 function createMovingResource(resourceType, cell) {
@@ -652,11 +676,46 @@ function createMovingResource(resourceType, cell) {
     element: document.createElement('div'),
   };
   resource.element.className = `factory-item factory-item--${resourceType.id}`;
-  resource.element.style.background = resourceType.color;
+  resource.element.style.background = resourceType.image ? 'transparent' : resourceType.color;
+  if (resourceType.image) {
+    const image = document.createElement('img');
+    image.src = resourceType.image;
+    image.alt = '';
+    resource.element.append(image);
+  }
   setResourcePosition(resource, cell);
   world.append(resource.element);
   movingResources.add(resource);
   return resource;
+}
+
+function placeResourceImmediately(resource, cell, side) {
+  resource.element.style.transition = 'none';
+  setResourcePosition(resource, cell, side);
+  resource.positionSide = side;
+  resource.element.getBoundingClientRect();
+  resource.element.style.transition = '';
+}
+
+function emitResource(resourceType, source, side) {
+  const target = cellNextTo(source, side);
+  const resource = createMovingResource(resourceType, source);
+  if (!isCellOnMap(target)) {
+    removeResource(resource);
+    return;
+  }
+  const conveyor = getConfirmedConveyorAt(target);
+  if (!conveyor) {
+    arriveAtCell(resource, target);
+    return;
+  }
+  if (isConveyorFull(target, resource)) {
+    removeResource(resource);
+    return;
+  }
+  resource.cell = { ...target };
+  placeResourceImmediately(resource, target);
+  advanceResource(resource, target);
 }
 
 function removeResource(resource) {
@@ -667,12 +726,31 @@ function removeResource(resource) {
   window.setTimeout(() => resource.element.remove(), 160);
 }
 
-function moveResourceTo(resource, cell, onArrival) {
-  setResourcePosition(resource, cell);
-  window.setTimeout(() => {
+function moveResourceTo(resource, cell, onArrival, stopAtEntry = false) {
+  const travelDirection = sideToward(resource.cell, cell);
+  const entryFrom = stopAtEntry ? oppositeSide(travelDirection) : null;
+  const from = getResourcePoint(resource.cell, resource.positionSide);
+  const to = getResourcePoint(cell, entryFrom);
+  const distance = Math.hypot(to.x - from.x, to.y - from.y);
+  const duration = Math.max(80, Math.round(CONVEYOR_TRAVEL_MS * distance));
+  resource.element.style.transition = `left ${duration}ms linear, top ${duration}ms linear, opacity 160ms ease`;
+  let completed = false;
+  const finishMove = () => {
+    if (completed) return;
+    completed = true;
+    resource.element.removeEventListener('transitionend', onTransitionEnd);
     onArrival();
     saveGameState();
-  }, 840);
+  };
+  const onTransitionEnd = (event) => {
+    if (event.propertyName === 'left') finishMove();
+  };
+  resource.element.addEventListener('transitionend', onTransitionEnd);
+  setResourcePosition(resource, cell, entryFrom);
+  resource.positionSide = entryFrom;
+  window.setTimeout(() => {
+    finishMove();
+  }, duration + 80);
 }
 
 function isConveyorFull(cell, resource) {
@@ -786,6 +864,7 @@ function arriveAtCell(resource, cell) {
   }
   if (conveyor) {
     resource.cell = { ...cell };
+    resource.positionSide = null;
     advanceResource(resource, cell);
     return;
   }
@@ -815,22 +894,15 @@ function advanceResource(resource, cell) {
     removeResource(resource);
     return;
   }
-  moveResourceTo(resource, target, () => arriveAtCell(resource, target));
+  const targetBuilding = buildings.get(`${target.x}:${target.y}`);
+  moveResourceTo(resource, target, () => arriveAtCell(resource, target), Boolean(targetBuilding));
 }
 
 function produceDrillResource(drill) {
   const [x, y] = drill.dataset.cellKey.split(':').map(Number);
   const source = { x, y };
-  const target = cellNextTo(source, drill.dataset.activeSide ?? 'bottom');
   const minedResource = pickDrillResource(Number(drill.dataset.level ?? 1));
-  const resource = createMovingResource(minedResource, source);
-  window.requestAnimationFrame(() => {
-    if (!isCellOnMap(target)) {
-      removeResource(resource);
-      return;
-    }
-    moveResourceTo(resource, target, () => arriveAtCell(resource, target));
-  });
+  emitResource(minedResource, source, drill.dataset.activeSide ?? 'bottom');
 }
 
 function runCrushers() {
@@ -859,12 +931,7 @@ function runCrushers() {
       if (output) {
         const [x, y] = crusher.dataset.cellKey.split(':').map(Number);
         const source = { x, y };
-        const target = cellNextTo(source, crusher.dataset.activeSide ?? 'bottom');
-        const resource = createMovingResource(output, source);
-        window.requestAnimationFrame(() => {
-          if (!isCellOnMap(target)) return removeResource(resource);
-          moveResourceTo(resource, target, () => arriveAtCell(resource, target));
-        });
+        emitResource(output, source, crusher.dataset.activeSide ?? 'bottom');
       }
       if (selectedCrusher === crusher) renderCrusherMenu(crusher);
       saveGameState();
@@ -898,13 +965,8 @@ function runFurnaces() {
       if (output) {
         const [x, y] = furnace.dataset.cellKey.split(':').map(Number);
         const source = { x, y };
-        const target = cellNextTo(source, furnace.dataset.activeSide ?? 'bottom');
         [0, 1].forEach(() => {
-          const resource = createMovingResource(output, source);
-          window.requestAnimationFrame(() => {
-            if (!isCellOnMap(target)) return removeResource(resource);
-            moveResourceTo(resource, target, () => arriveAtCell(resource, target));
-          });
+          emitResource(output, source, furnace.dataset.activeSide ?? 'bottom');
         });
       }
       if (selectedFurnace === furnace) renderFurnaceMenu(furnace);
@@ -939,7 +1001,7 @@ function openDrillMenu(drill) {
   machineRate.textContent = formatProductionRate(level);
   machineDropList.innerHTML = getDrillChances(level).map((resource) => `
     <div class="machine-drop">
-      <i class="resource-swatch" style="background:${resource.color}" aria-hidden="true"></i>
+      <i class="resource-swatch" style="background:${resource.color}" aria-hidden="true">${resource.image ? `<img src="${resource.image}" alt="">` : ''}</i>
       <span>${resource.name}</span>
       <b>${resource.chance}%</b>
     </div>
@@ -968,9 +1030,11 @@ function renderCrusherMenu(crusher) {
   crusherLevel.textContent = `Уровень ${level} из ${MAX_CRUSHER_LEVEL}`;
   crusherRate.textContent = formatCrusherRate(level);
   crusherInputIcon.style.background = input?.color ?? '#dfe4e8';
+  crusherInputIcon.innerHTML = input?.image ? `<img src="${input.image}" alt="">` : '';
   crusherInputName.textContent = input?.name ?? 'Нет руды';
   crusherInputCount.textContent = String(count);
   crusherOutputIcon.style.background = output?.color ?? '#dfe4e8';
+  crusherOutputIcon.innerHTML = output?.image ? `<img src="${output.image}" alt="">` : '';
   crusherOutputName.textContent = output?.name ?? '—';
   crusherOutputCount.textContent = output ? String(count * 2) : '0';
   crusherArrowProgress.style.width = `${progress * 100}%`;
@@ -1190,6 +1254,7 @@ function renderCamera() {
 
 map.addEventListener('pointerdown', (event) => {
   if (event.button !== 0) return;
+  setInventoryOpen(false);
   const building = event.target.closest('.building');
   if (deleteMode && building && !building.classList.contains('building--draft')) {
     toggleBuildingDeletion(building);

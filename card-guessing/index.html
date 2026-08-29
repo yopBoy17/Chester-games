@@ -13,6 +13,16 @@
       <h1>Угадай карточку</h1>
       <p class="lead">Выберите тайные карточки, задавайте вопросы очно и закрывайте неподходящие варианты.</p>
       <div class="start-actions">
+        <label class="topic-select">Тема
+          <select id="topicSelect">
+            <option value="marvel-films">Фильмы Marvel</option>
+            <option value="animals">Животные</option>
+            <option value="food">Еда</option>
+            <option value="countries">Страны</option>
+            <option value="marvel-characters">Персонажи Marvel</option>
+            <option value="disney-pixar">Disney / Pixar</option>
+          </select>
+        </label>
         <button class="primary" id="createRoom" type="button">Создать комнату</button>
         <div class="join-row"><input id="roomCode" inputmode="numeric" maxlength="4" placeholder="Код комнаты" /><button class="secondary" id="joinRoom" type="button">Войти</button></div>
       </div>
@@ -22,15 +32,21 @@
     <section class="screen is-hidden" id="roomScreen">
       <p class="eyebrow">Комната</p>
       <h1 id="roomTitle">----</h1>
-      <div class="topic-card"><span>Тема</span><strong>Фильмы Marvel</strong><small>20 карточек</small></div>
+      <div class="topic-card"><span>Тема</span><strong id="topicName">Фильмы Marvel</strong><small>20 карточек</small></div>
       <p class="room-status" id="roomStatus">Ждём второго игрока…</p>
       <button class="primary is-hidden" id="startGame" type="button">Начать игру</button>
     </section>
 
     <section class="game is-hidden" id="gameScreen">
-      <header class="game-header"><div><p class="eyebrow">Фильмы Marvel</p><h1 id="gameTitle">Выбери тайную карточку</h1></div><p class="turn-note" id="turnNote"></p></header>
+      <header class="game-header"><div><p class="eyebrow" id="gameTopic">Фильмы Marvel</p><h1 id="gameTitle">Выбери тайную карточку</h1></div><p class="turn-note" id="turnNote"></p></header>
       <div class="cards" id="cards"></div>
       <p class="hint" id="gameHint">Нажми на фильм, который ты загадываешь. Соперник его не увидит.</p>
+    </section>
+    <section class="result-modal is-hidden" id="resultModal" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+      <p class="eyebrow">Раунд завершён</p>
+      <h2 id="resultTitle">Поздравляем!</h2>
+      <p id="resultText">Осталась одна карточка — ты отгадал ответ.</p>
+      <div class="result-actions"><button class="primary" id="rematchButton" type="button">Реванш</button><button class="secondary" id="leaveButton" type="button">Выйти</button></div>
     </section>
   </main>
   <script src="game.js"></script>

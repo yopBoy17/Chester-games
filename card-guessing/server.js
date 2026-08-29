@@ -6,6 +6,7 @@ const { WebSocketServer, WebSocket } = require('ws');
 const PORT = Number(process.env.PORT) || 8082;
 const ROOT = __dirname;
 const rooms = new Map();
+const TOPICS = new Set(['marvel-films', 'animals', 'food', 'countries', 'marvel-characters', 'disney-pixar']);
 const files = {
   '/': ['index.html', 'text/html; charset=utf-8'],
   '/index.html': ['index.html', 'text/html; charset=utf-8'],
@@ -24,6 +25,7 @@ function roomState(room) {
     players: room.players.length,
     phase: room.phase,
     selections: room.selections.map(Boolean),
+    rematchReady: [...room.rematchReady],
   };
 }
 
@@ -47,6 +49,7 @@ function leave(socket) {
   else {
     room.phase = 'lobby';
     room.selections = [null, null];
+    room.rematchReady.clear();
     broadcast(room);
   }
 }
@@ -81,7 +84,8 @@ webSocketServer.on('connection', (socket) => {
 
     if (message.type === 'create_room') {
       leave(socket);
-      const room = { code: newCode(), topic: 'marvel', players: [socket], phase: 'lobby', selections: [null, null] };
+      const topic = TOPICS.has(message.topic) ? message.topic : 'marvel-films';
+      const room = { code: newCode(), topic, players: [socket], phase: 'lobby', selections: [null, null], rematchReady: new Set() };
       rooms.set(room.code, room);
       socket.roomCode = room.code;
       socket.playerIndex = 0;
@@ -107,6 +111,7 @@ webSocketServer.on('connection', (socket) => {
       if (socket.playerIndex !== 0 || room.players.length !== 2) return;
       room.phase = 'selection';
       room.selections = [null, null];
+      room.rematchReady.clear();
       broadcast(room);
       return;
     }
@@ -116,6 +121,22 @@ webSocketServer.on('connection', (socket) => {
       room.selections[socket.playerIndex] = cardId;
       if (room.selections.every(Boolean)) room.phase = 'playing';
       broadcast(room);
+      return;
+    }
+    if (message.type === 'request_rematch') {
+      if (room.phase !== 'playing') return;
+      room.rematchReady.add(socket.playerIndex);
+      if (room.rematchReady.size === 2) {
+        room.phase = 'selection';
+        room.selections = [null, null];
+        room.rematchReady.clear();
+      }
+      broadcast(room);
+      return;
+    }
+    if (message.type === 'leave_room') {
+      leave(socket);
+      send(socket, { type: 'left_room' });
     }
   });
 

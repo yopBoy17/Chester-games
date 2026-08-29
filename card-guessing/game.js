@@ -7,6 +7,9 @@ const topics = {
   countries: { name: 'Страны', cards: deck('country', [['Россия', 'Европа и Азия'], ['Франция', 'Европа'], ['Италия', 'Европа'], ['Германия', 'Европа'], ['Испания', 'Европа'], ['Япония', 'Азия'], ['Китай', 'Азия'], ['Индия', 'Азия'], ['Южная Корея', 'Азия'], ['Бразилия', 'Южная Америка'], ['Аргентина', 'Южная Америка'], ['США', 'Северная Америка'], ['Канада', 'Северная Америка'], ['Мексика', 'Северная Америка'], ['Австралия', 'Океания'], ['Египет', 'Африка'], ['ЮАР', 'Африка'], ['Турция', 'Европа и Азия'], ['Норвегия', 'Европа'], ['Греция', 'Европа']]) },
   'marvel-characters': { name: 'Персонажи Marvel', cards: deck('hero', [['Железный человек', 'Мститель'], ['Капитан Америка', 'Мститель'], ['Тор', 'Мститель'], ['Халк', 'Мститель'], ['Чёрная вдова', 'Мститель'], ['Соколиный глаз', 'Мститель'], ['Человек-паук', 'Герой'], ['Доктор Стрэндж', 'Герой'], ['Чёрная пантера', 'Герой'], ['Капитан Марвел', 'Герой'], ['Человек-муравей', 'Герой'], ['Оса', 'Герой'], ['Росомаха', 'Люди Икс'], ['Дэдпул', 'Антигерой'], ['Локи', 'Асгард'], ['Танос', 'Злодей'], ['Зелёный гоблин', 'Злодей'], ['Веном', 'Симбиот'], ['Алая ведьма', 'Мститель'], ['Звёздный лорд', 'Страж Галактики']]) },
   'disney-pixar': { name: 'Disney / Pixar', cards: deck('cartoon', [['Король Лев', 'Disney'], ['Холодное сердце', 'Disney'], ['Моана', 'Disney'], ['Рапунцель', 'Disney'], ['Зверополис', 'Disney'], ['Энканто', 'Disney'], ['Русалочка', 'Disney'], ['Аладдин', 'Disney'], ['Мулан', 'Disney'], ['Лило и Стич', 'Disney'], ['История игрушек', 'Pixar'], ['Тачки', 'Pixar'], ['В поисках Немо', 'Pixar'], ['Корпорация монстров', 'Pixar'], ['Суперсемейка', 'Pixar'], ['Вверх', 'Pixar'], ['Головоломка', 'Pixar'], ['Тайна Коко', 'Pixar'], ['Душа', 'Pixar'], ['ВАЛЛ·И', 'Pixar']]) },
+  'harry-potter': { name: 'Гарри Поттер', cards: deck('potter', [['Гарри Поттер', 'Гриффиндор'], ['Гермиона Грейнджер', 'Гриффиндор'], ['Рон Уизли', 'Гриффиндор'], ['Альбус Дамблдор', 'Хогвартс'], ['Северус Снейп', 'Хогвартс'], ['Драко Малфой', 'Слизерин'], ['Лорд Волан-де-Морт', 'Тёмный маг'], ['Сириус Блэк', 'Орден Феникса'], ['Римус Люпин', 'Орден Феникса'], ['Минерва Макгонагалл', 'Хогвартс'], ['Хагрид', 'Хогвартс'], ['Невилл Долгопупс', 'Гриффиндор'], ['Джинни Уизли', 'Гриффиндор'], ['Фред Уизли', 'Гриффиндор'], ['Джордж Уизли', 'Гриффиндор'], ['Беллатриса Лестрейндж', 'Пожиратель смерти'], ['Добби', 'Домовой эльф'], ['Луна Лавгуд', 'Когтевран'], ['Седрик Диггори', 'Пуффендуй'], ['Чжоу Чанг', 'Когтевран']]) },
+  'mythical-creatures': { name: 'Мифические существа', cards: deck('myth', [['Дракон', 'Огнедышащий'], ['Единорог', 'Волшебный конь'], ['Феникс', 'Возрождается'], ['Кентавр', 'Получеловек'], ['Минотавр', 'Лабиринт'], ['Грифон', 'Орёл и лев'], ['Гидра', 'Многоголовая'], ['Сфинкс', 'Загадки'], ['Русалка', 'Море'], ['Кракен', 'Океан'], ['Василиск', 'Змея'], ['Пегас', 'Крылатый конь'], ['Цербер', 'Три головы'], ['Йети', 'Горы'], ['Банши', 'Дух'], ['Виверна', 'Крылатый дракон'], ['Левиафан', 'Морское чудовище'], ['Кицунэ', 'Девятихвостая лиса'], ['Химера', 'Составное существо'], ['Гарпия', 'Крылатая женщина']]) },
+  'tv-series': { name: 'Сериалы', cards: deck('series', [['Во все тяжкие', 'Драма'], ['Лучше звоните Солу', 'Драма'], ['Игра престолов', 'Фэнтези'], ['Дом дракона', 'Фэнтези'], ['Очень странные дела', 'Фантастика'], ['Чёрное зеркало', 'Антология'], ['Шерлок', 'Детектив'], ['Доктор Хаус', 'Медицина'], ['Друзья', 'Комедия'], ['Офис', 'Комедия'], ['Как я встретил вашу маму', 'Комедия'], ['Мандалорец', 'Космос'], ['Одни из нас', 'Постапокалипсис'], ['Ведьмак', 'Фэнтези'], ['Острые козырьки', 'Криминал'], ['Настоящий детектив', 'Детектив'], ['Бумажный дом', 'Ограбление'], ['Тьма', 'Научная фантастика'], ['Разделение', 'Научная фантастика'], ['Аркейн', 'Анимация']]) },
 };
 
 const startScreen = document.querySelector('#startScreen');
@@ -27,8 +30,12 @@ const gameHint = document.querySelector('#gameHint');
 const turnNote = document.querySelector('#turnNote');
 const cards = document.querySelector('#cards');
 const resultModal = document.querySelector('#resultModal');
+const resultTitle = document.querySelector('#resultTitle');
 const resultText = document.querySelector('#resultText');
 const rematchButton = document.querySelector('#rematchButton');
+const rematchTopicControl = document.querySelector('#rematchTopicControl');
+const rematchTopicSelect = document.querySelector('#rematchTopicSelect');
+const startRematchButton = document.querySelector('#startRematchButton');
 const leaveButton = document.querySelector('#leaveButton');
 
 let socket;
@@ -63,11 +70,22 @@ function renderCards() {
   cards.innerHTML = topic.cards.map((card) => `<button class="card${secretCardId === card.id ? ' is-secret' : ''}${closedCards.has(card.id) ? ' is-closed' : ''}" type="button" data-card-id="${card.id}" style="background:${card.color}"><span class="year">${card.meta}</span><strong>${card.title}</strong></button>`).join('');
 }
 
-function showResult(waiting = false) {
-  resultText.textContent = waiting
-    ? 'Ты готов к реваншу. Ждём подтверждения второго игрока.'
-    : 'Осталась одна карточка — ты отгадал ответ.';
-  rematchButton.disabled = waiting;
+function showResult(mode = 'victory') {
+  const messages = {
+    victory: 'Осталась одна карточка — ты отгадал ответ.',
+    waiting: 'Ты готов к реваншу. Ждём подтверждения второго игрока.',
+    opponent: 'Соперник готов к реваншу.',
+    setupHost: 'Выберите тему следующего раунда.',
+    setupGuest: 'Соперник выбирает тему следующего раунда.',
+  };
+  resultText.textContent = messages[mode];
+  resultTitle.textContent = mode.startsWith('setup') ? 'Реванш' : 'Поздравляем!';
+  rematchTopicControl.classList.toggle('is-hidden', mode !== 'setupHost');
+  rematchButton.classList.toggle('is-hidden', mode === 'setupHost' || mode === 'setupGuest');
+  startRematchButton.classList.toggle('is-hidden', mode !== 'setupHost');
+  rematchButton.disabled = mode === 'waiting';
+  if (mode === 'opponent') rematchButton.textContent = 'Подтвердить реванш';
+  else rematchButton.textContent = 'Реванш';
   resultModal.classList.remove('is-hidden');
 }
 
@@ -90,7 +108,21 @@ function renderGame() {
   gameHint.textContent = 'Нажимай на неподходящие карточки, чтобы закрыть или вернуть их.';
   renderCards();
   const topic = topics[room.topic] ?? topics['marvel-films'];
-  if (topic.cards.length - closedCards.size === 1) showResult(room.rematchReady?.includes(playerIndex));
+  const readyPlayers = room.rematchReady ?? [];
+  if (readyPlayers.includes(playerIndex)) showResult('waiting');
+  else if (readyPlayers.length) showResult('opponent');
+  else if (topic.cards.length - closedCards.size === 1) showResult('victory');
+}
+
+function renderRematchSetup() {
+  show(gameScreen);
+  gameTopic.textContent = topics[room.topic]?.name ?? '';
+  gameTitle.textContent = 'Подготовка к реваншу';
+  turnNote.textContent = '';
+  gameHint.textContent = '';
+  cards.innerHTML = '';
+  rematchTopicSelect.value = room.topic;
+  showResult(room.rematchStarter === playerIndex ? 'setupHost' : 'setupGuest');
 }
 
 function handleMessage(message) {
@@ -117,6 +149,7 @@ function handleMessage(message) {
   if (room.phase === 'lobby') renderRoom();
   else if (room.phase === 'selection') renderSelection();
   else if (room.phase === 'playing') renderGame();
+  else if (room.phase === 'rematch_setup') renderRematchSetup();
 }
 
 createRoomButton.addEventListener('click', () => { connect(); const timer = setInterval(() => { if (socket?.readyState === WebSocket.OPEN) { clearInterval(timer); send({ type: 'create_room', topic: topicSelect.value }); } }, 50); });
@@ -135,7 +168,9 @@ cards.addEventListener('click', (event) => {
 
 rematchButton.addEventListener('click', () => {
   send({ type: 'request_rematch' });
-  showResult(true);
+  showResult('waiting');
 });
+
+startRematchButton.addEventListener('click', () => send({ type: 'set_rematch_topic', topic: rematchTopicSelect.value }));
 
 leaveButton.addEventListener('click', () => send({ type: 'leave_room' }));

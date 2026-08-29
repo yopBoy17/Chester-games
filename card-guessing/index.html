@@ -21,6 +21,9 @@
             <option value="countries">Страны</option>
             <option value="marvel-characters">Персонажи Marvel</option>
             <option value="disney-pixar">Disney / Pixar</option>
+            <option value="harry-potter">Гарри Поттер</option>
+            <option value="mythical-creatures">Мифические существа</option>
+            <option value="tv-series">Сериалы</option>
           </select>
         </label>
         <button class="primary" id="createRoom" type="button">Создать комнату</button>
@@ -46,7 +49,20 @@
       <p class="eyebrow">Раунд завершён</p>
       <h2 id="resultTitle">Поздравляем!</h2>
       <p id="resultText">Осталась одна карточка — ты отгадал ответ.</p>
-      <div class="result-actions"><button class="primary" id="rematchButton" type="button">Реванш</button><button class="secondary" id="leaveButton" type="button">Выйти</button></div>
+      <label class="topic-select is-hidden" id="rematchTopicControl">Тема следующего раунда
+        <select id="rematchTopicSelect">
+          <option value="marvel-films">Фильмы Marvel</option>
+          <option value="animals">Животные</option>
+          <option value="food">Еда</option>
+          <option value="countries">Страны</option>
+          <option value="marvel-characters">Персонажи Marvel</option>
+          <option value="disney-pixar">Disney / Pixar</option>
+          <option value="harry-potter">Гарри Поттер</option>
+          <option value="mythical-creatures">Мифические существа</option>
+          <option value="tv-series">Сериалы</option>
+        </select>
+      </label>
+      <div class="result-actions"><button class="primary" id="rematchButton" type="button">Реванш</button><button class="primary is-hidden" id="startRematchButton" type="button">Начать новый раунд</button><button class="secondary" id="leaveButton" type="button">Выйти</button></div>
     </section>
   </main>
   <script src="game.js"></script>

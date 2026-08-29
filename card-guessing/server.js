@@ -6,7 +6,7 @@ const { WebSocketServer, WebSocket } = require('ws');
 const PORT = Number(process.env.PORT) || 8082;
 const ROOT = __dirname;
 const rooms = new Map();
-const TOPICS = new Set(['marvel-films', 'animals', 'food', 'countries', 'marvel-characters', 'disney-pixar']);
+const TOPICS = new Set(['marvel-films', 'animals', 'food', 'countries', 'marvel-characters', 'disney-pixar', 'harry-potter', 'mythical-creatures', 'tv-series']);
 const files = {
   '/': ['index.html', 'text/html; charset=utf-8'],
   '/index.html': ['index.html', 'text/html; charset=utf-8'],
@@ -26,6 +26,7 @@ function roomState(room) {
     phase: room.phase,
     selections: room.selections.map(Boolean),
     rematchReady: [...room.rematchReady],
+    rematchStarter: room.rematchStarter,
   };
 }
 
@@ -50,6 +51,7 @@ function leave(socket) {
     room.phase = 'lobby';
     room.selections = [null, null];
     room.rematchReady.clear();
+    room.rematchStarter = null;
     broadcast(room);
   }
 }
@@ -85,7 +87,7 @@ webSocketServer.on('connection', (socket) => {
     if (message.type === 'create_room') {
       leave(socket);
       const topic = TOPICS.has(message.topic) ? message.topic : 'marvel-films';
-      const room = { code: newCode(), topic, players: [socket], phase: 'lobby', selections: [null, null], rematchReady: new Set() };
+      const room = { code: newCode(), topic, players: [socket], phase: 'lobby', selections: [null, null], rematchReady: new Set(), rematchStarter: null };
       rooms.set(room.code, room);
       socket.roomCode = room.code;
       socket.playerIndex = 0;
@@ -112,6 +114,7 @@ webSocketServer.on('connection', (socket) => {
       room.phase = 'selection';
       room.selections = [null, null];
       room.rematchReady.clear();
+      room.rematchStarter = null;
       broadcast(room);
       return;
     }
@@ -125,12 +128,21 @@ webSocketServer.on('connection', (socket) => {
     }
     if (message.type === 'request_rematch') {
       if (room.phase !== 'playing') return;
+      if (room.rematchStarter === null) room.rematchStarter = socket.playerIndex;
       room.rematchReady.add(socket.playerIndex);
       if (room.rematchReady.size === 2) {
-        room.phase = 'selection';
-        room.selections = [null, null];
-        room.rematchReady.clear();
+        room.phase = 'rematch_setup';
       }
+      broadcast(room);
+      return;
+    }
+    if (message.type === 'set_rematch_topic') {
+      if (room.phase !== 'rematch_setup' || socket.playerIndex !== room.rematchStarter || !TOPICS.has(message.topic)) return;
+      room.topic = message.topic;
+      room.phase = 'selection';
+      room.selections = [null, null];
+      room.rematchReady.clear();
+      room.rematchStarter = null;
       broadcast(room);
       return;
     }

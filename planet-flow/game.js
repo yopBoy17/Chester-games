@@ -1714,7 +1714,10 @@ function connectMultiplayer() {
 
   multiplayerSocket?.close();
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-  const socket = new WebSocket(`${protocol}//${location.host}`);
+  const pagePath = location.pathname.endsWith("/")
+    ? location.pathname
+    : location.pathname.replace(/\/[^/]*$/, "/");
+  const socket = new WebSocket(`${protocol}//${location.host}${pagePath}`);
   multiplayerSocket = socket;
 
   return new Promise((resolve, reject) => {

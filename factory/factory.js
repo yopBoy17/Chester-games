@@ -18,6 +18,30 @@ const machineLevel = document.querySelector('.machine-level');
 const machineRate = document.querySelector('.machine-rate');
 const machineDropList = document.querySelector('.machine-drop-list');
 const machineUpgrade = document.querySelector('#machineUpgrade');
+const crusherMenu = document.querySelector('#crusherMenu');
+const crusherLevel = document.querySelector('.crusher-level');
+const crusherRate = document.querySelector('.crusher-rate');
+const crusherInputIcon = document.querySelector('.crusher-input-icon');
+const crusherInputName = document.querySelector('.crusher-input-name');
+const crusherInputCount = document.querySelector('.crusher-input-count');
+const crusherOutputIcon = document.querySelector('.crusher-output-icon');
+const crusherOutputName = document.querySelector('.crusher-output-name');
+const crusherOutputCount = document.querySelector('.crusher-output-count');
+const crusherArrowProgress = document.querySelector('.crusher-arrow > span');
+const crusherAvailable = document.querySelector('.crusher-available');
+const crusherUpgrade = document.querySelector('#crusherUpgrade');
+const furnaceMenu = document.querySelector('#furnaceMenu');
+const furnaceLevel = document.querySelector('.furnace-level');
+const furnaceRate = document.querySelector('.furnace-rate');
+const furnaceInputIcon = document.querySelector('.furnace-input-icon');
+const furnaceInputName = document.querySelector('.furnace-input-name');
+const furnaceInputCount = document.querySelector('.furnace-input-count');
+const furnaceOutputIcon = document.querySelector('.furnace-output-icon');
+const furnaceOutputName = document.querySelector('.furnace-output-name');
+const furnaceOutputCount = document.querySelector('.furnace-output-count');
+const furnaceArrowProgress = document.querySelector('.furnace-arrow > span');
+const furnaceAvailable = document.querySelector('.furnace-available');
+const furnaceUpgrade = document.querySelector('#furnaceUpgrade');
 const confirmPlacement = document.querySelector('#confirmPlacement');
 const discardPlacement = document.querySelector('#discardPlacement');
 const BASE_CELL_SIZE = 42;
@@ -34,6 +58,8 @@ let rotateMode = false;
 let deleteMode = false;
 let lastPlacedConveyorKey = null;
 let selectedDrill = null;
+let selectedCrusher = null;
+let selectedFurnace = null;
 let movingBuilding = null;
 let movingOriginKey = null;
 let selectedBuildingForMove = null;
@@ -44,7 +70,12 @@ const buildingsMarkedForDeletion = new Set();
 const movingResources = new Set();
 const DRILL_UPGRADE_COST = 10;
 const MAX_DRILL_LEVEL = 9;
+const CRUSHER_UPGRADE_COST = 10;
+const MAX_CRUSHER_LEVEL = 9;
+const FURNACE_UPGRADE_COST = 10;
+const MAX_FURNACE_LEVEL = 9;
 const MAX_CONVEYOR_ITEMS = 20;
+const CONVEYOR_TRAVEL_MS = 1_400;
 const inventoryItems = [
   { id: 'trash', name: 'Мусор', color: '#6f7780', sellPrice: 1 },
 ];
@@ -52,18 +83,55 @@ let inventory = { trash: 0 };
 let selectedInventoryItemId = null;
 let saveSyncTimer = null;
 const drillResources = [
-  { id: 'coal', name: 'Уголь', color: '#202329' },
-  { id: 'iron', name: 'Железо', color: '#73808b' },
-  { id: 'copper', name: 'Медь', color: '#c7784e' },
-  { id: 'tin', name: 'Олово', color: '#a7b7c2' },
-  { id: 'silver', name: 'Серебро', color: '#d6dbe1' },
-  { id: 'gold', name: 'Золото', color: '#e1b139' },
-  { id: 'tungsten', name: 'Вольфрам', color: '#48525b' },
-  { id: 'platinum', name: 'Платина', color: '#79a1a8' },
+  { id: 'coal', name: 'Уголь', color: '#202329', image: 'assets/resources/coal.png' },
+  { id: 'iron', name: 'Железная руда', color: '#73808b', image: 'assets/resources/iron.png' },
+  { id: 'copper', name: 'Медная руда', color: '#c7784e', image: 'assets/resources/copper.png' },
+  { id: 'tin', name: 'Оловянная руда', color: '#a7b7c2', image: 'assets/resources/tin.png' },
+  { id: 'silver', name: 'Серебряная руда', color: '#d6dbe1', image: 'assets/resources/silver.png' },
+  { id: 'gold', name: 'Золотая руда', color: '#e1b139', image: 'assets/resources/gold.png' },
+  { id: 'tungsten', name: 'Вольфрамовая руда', color: '#48525b', image: 'assets/resources/tungsten.png' },
+  { id: 'platinum', name: 'Платиновая руда', color: '#79a1a8', image: 'assets/resources/platinum.png' },
+  { id: 'diamond', name: 'Алмазная руда', color: '#59bdd8', image: 'assets/resources/diamond.png' },
+];
+const powderNames = {
+  iron: 'Железный порошок',
+  copper: 'Медный порошок',
+  tin: 'Оловянный порошок',
+  silver: 'Серебряный порошок',
+  gold: 'Золотой порошок',
+  tungsten: 'Вольфрамовый порошок',
+  platinum: 'Платиновый порошок',
+  diamond: 'Алмазный порошок',
+};
+const crushedResources = drillResources.slice(1).map((resource) => ({
+  id: `${resource.id}-powder`,
+  name: powderNames[resource.id],
+  color: resource.color,
+  image: `assets/powders/${resource.id}-powder.png`,
+}));
+const smeltedResources = [
+  { id: 'iron-ingot', name: 'Железный слиток', color: '#73808b' },
+  { id: 'copper-ingot', name: 'Медный слиток', color: '#c7784e' },
+  { id: 'tin-ingot', name: 'Оловянный слиток', color: '#a7b7c2' },
+  { id: 'silver-ingot', name: 'Серебряный слиток', color: '#d6dbe1' },
+  { id: 'gold-ingot', name: 'Золотой слиток', color: '#e1b139' },
+  { id: 'tungsten-ingot', name: 'Вольфрамовый слиток', color: '#48525b' },
+  { id: 'platinum-ingot', name: 'Платиновый слиток', color: '#79a1a8' },
   { id: 'diamond', name: 'Алмаз', color: '#59bdd8' },
 ];
+
+inventoryItems.push(
+  ...[...drillResources, ...crushedResources, ...smeltedResources].map((resource) => ({
+    ...resource,
+    sellPrice: 0,
+  })),
+);
+
+function getResourceType(resourceId) {
+  return [...drillResources, ...crushedResources, ...smeltedResources].find((resource) => resource.id === resourceId) ?? null;
+}
 const drillChanceTable = [
-  [100],
+  [75, 25],
   [70, 30],
   [25, 50, 25],
   [15, 35, 35, 15],
@@ -135,6 +203,12 @@ function saveGameState() {
       activeSide: building.dataset.activeSide,
       level: Number(building.dataset.level ?? 1),
       cost: Number(building.dataset.cost ?? 0),
+      crusherInputId: building.dataset.crusherInputId ?? null,
+      crusherInputCount: Number(building.dataset.crusherInputCount ?? 0),
+      crusherNextProcessAt: Number(building.dataset.crusherNextProcessAt ?? 0),
+      furnaceInputId: building.dataset.furnaceInputId ?? null,
+      furnaceInputCount: Number(building.dataset.furnaceInputCount ?? 0),
+      furnaceNextProcessAt: Number(building.dataset.furnaceNextProcessAt ?? 0),
       isDraft,
     };
   };
@@ -200,7 +274,7 @@ function renderInventory() {
   const slots = [...filledSlots, ...Array.from({ length: 100 - filledSlots.length }, () => null)];
   inventoryGrid.innerHTML = slots.map((item) => item
     ? `<button class="inventory-slot" type="button" data-item-id="${item.id}" title="${item.name}">
-        <i class="inventory-item-icon" style="background:${item.color}" aria-hidden="true"></i>
+        <i class="inventory-item-icon" style="background:${item.image ? 'transparent' : item.color}" aria-hidden="true">${item.image ? `<img src="${item.image}" alt="">` : ''}</i>
         <span class="inventory-count">${item.count}</span>
       </button>`
     : '<div class="inventory-slot is-empty" aria-label="Пустая ячейка"><span class="inventory-count"></span></div>')
@@ -218,11 +292,12 @@ function renderInventoryDetail() {
     return;
   }
   inventoryDetail.innerHTML = `
-    <i class="inventory-detail-preview" style="background:${item.color}" aria-hidden="true"></i>
+    <i class="inventory-detail-preview" style="background:${item.image ? 'transparent' : item.color}" aria-hidden="true">${item.image ? `<img src="${item.image}" alt="">` : ''}</i>
     <strong>${item.name}</strong>
     <span>Количество: ${count}</span>
-    <span>Цена: ${item.sellPrice} $ за шт.</span>
-    <button class="inventory-sell" type="button" data-item-id="${item.id}">Продать всё · ${count * item.sellPrice} $</button>
+    ${item.sellPrice > 0
+      ? `<span>Цена: ${item.sellPrice} $ за шт.</span><button class="inventory-sell" type="button" data-item-id="${item.id}">Продать всё · ${count * item.sellPrice} $</button>`
+      : '<span>Материал на складе</span>'}
   `;
   inventoryDetail.classList.add('is-visible');
 }
@@ -451,9 +526,9 @@ function restoreGameState(savedState = null, replaceCurrent = false) {
   if (replaceCurrent) clearGameState();
 
   if (state.inventory && typeof state.inventory === 'object') {
-    inventory = {
-      trash: Math.max(0, Number(state.inventory.trash) || 0),
-    };
+    inventory = Object.fromEntries(Object.entries(state.inventory)
+      .map(([itemId, count]) => [itemId, Math.max(0, Number(count) || 0)]));
+    inventory.trash ??= 0;
   }
 
   state.resources?.forEach((savedResource, index) => {
@@ -480,6 +555,16 @@ function restoreGameState(savedState = null, replaceCurrent = false) {
       cost: savedBuilding.cost == null ? product.price : Number(savedBuilding.cost) || 0,
     });
     (savedBuilding.isDraft ? draftBuildings : buildings).set(building.dataset.cellKey, building);
+    if (product.id === 'crusher') {
+      if (savedBuilding.crusherInputId) building.dataset.crusherInputId = savedBuilding.crusherInputId;
+      if (savedBuilding.crusherInputCount) building.dataset.crusherInputCount = String(savedBuilding.crusherInputCount);
+      if (savedBuilding.crusherNextProcessAt) building.dataset.crusherNextProcessAt = String(savedBuilding.crusherNextProcessAt);
+    }
+    if (product.id === 'furnace') {
+      if (savedBuilding.furnaceInputId) building.dataset.furnaceInputId = savedBuilding.furnaceInputId;
+      if (savedBuilding.furnaceInputCount) building.dataset.furnaceInputCount = String(savedBuilding.furnaceInputCount);
+      if (savedBuilding.furnaceNextProcessAt) building.dataset.furnaceNextProcessAt = String(savedBuilding.furnaceNextProcessAt);
+    }
   });
 
   selectedProduct = products.find((product) => product.id === state.selectedProductId) ?? null;
@@ -495,7 +580,7 @@ function restoreGameState(savedState = null, replaceCurrent = false) {
   refreshConveyors();
 
   state.conveyorItems?.forEach((savedItem) => {
-    const resource = drillResources.find((item) => item.id === savedItem.resourceId);
+    const resource = getResourceType(savedItem.resourceId);
     const cell = { x: Number(savedItem.x), y: Number(savedItem.y) };
     if (!resource || !isCellOnMap(cell) || !getConfirmedConveyorAt(cell)) return;
     const item = createMovingResource(resource, cell);
@@ -567,9 +652,21 @@ function pickDrillResource(level) {
   }) ?? drillResources[0];
 }
 
-function setResourcePosition(resource, cell) {
-  resource.element.style.left = `${((cell.x + 0.5) / MAP_SIZE) * 100}%`;
-  resource.element.style.top = `${((cell.y + 0.5) / MAP_SIZE) * 100}%`;
+function getResourcePoint(cell, entryFrom = null) {
+  const entryOffset = 0.08;
+  let offsetX = 0.5;
+  let offsetY = 0.5;
+  if (entryFrom === 'left') offsetX = entryOffset;
+  if (entryFrom === 'right') offsetX = 1 - entryOffset;
+  if (entryFrom === 'top') offsetY = entryOffset;
+  if (entryFrom === 'bottom') offsetY = 1 - entryOffset;
+  return { x: cell.x + offsetX, y: cell.y + offsetY };
+}
+
+function setResourcePosition(resource, cell, entryFrom = null) {
+  const point = getResourcePoint(cell, entryFrom);
+  resource.element.style.left = `${(point.x / MAP_SIZE) * 100}%`;
+  resource.element.style.top = `${(point.y / MAP_SIZE) * 100}%`;
 }
 
 function createMovingResource(resourceType, cell) {
@@ -579,11 +676,46 @@ function createMovingResource(resourceType, cell) {
     element: document.createElement('div'),
   };
   resource.element.className = `factory-item factory-item--${resourceType.id}`;
-  resource.element.style.background = resourceType.color;
+  resource.element.style.background = resourceType.image ? 'transparent' : resourceType.color;
+  if (resourceType.image) {
+    const image = document.createElement('img');
+    image.src = resourceType.image;
+    image.alt = '';
+    resource.element.append(image);
+  }
   setResourcePosition(resource, cell);
   world.append(resource.element);
   movingResources.add(resource);
   return resource;
+}
+
+function placeResourceImmediately(resource, cell, side) {
+  resource.element.style.transition = 'none';
+  setResourcePosition(resource, cell, side);
+  resource.positionSide = side;
+  resource.element.getBoundingClientRect();
+  resource.element.style.transition = '';
+}
+
+function emitResource(resourceType, source, side) {
+  const target = cellNextTo(source, side);
+  const resource = createMovingResource(resourceType, source);
+  if (!isCellOnMap(target)) {
+    removeResource(resource);
+    return;
+  }
+  const conveyor = getConfirmedConveyorAt(target);
+  if (!conveyor) {
+    arriveAtCell(resource, target);
+    return;
+  }
+  if (isConveyorFull(target, resource)) {
+    removeResource(resource);
+    return;
+  }
+  resource.cell = { ...target };
+  placeResourceImmediately(resource, target);
+  advanceResource(resource, target);
 }
 
 function removeResource(resource) {
@@ -594,12 +726,31 @@ function removeResource(resource) {
   window.setTimeout(() => resource.element.remove(), 160);
 }
 
-function moveResourceTo(resource, cell, onArrival) {
-  setResourcePosition(resource, cell);
-  window.setTimeout(() => {
+function moveResourceTo(resource, cell, onArrival, stopAtEntry = false) {
+  const travelDirection = sideToward(resource.cell, cell);
+  const entryFrom = stopAtEntry ? oppositeSide(travelDirection) : null;
+  const from = getResourcePoint(resource.cell, resource.positionSide);
+  const to = getResourcePoint(cell, entryFrom);
+  const distance = Math.hypot(to.x - from.x, to.y - from.y);
+  const duration = Math.max(80, Math.round(CONVEYOR_TRAVEL_MS * distance));
+  resource.element.style.transition = `left ${duration}ms linear, top ${duration}ms linear, opacity 160ms ease`;
+  let completed = false;
+  const finishMove = () => {
+    if (completed) return;
+    completed = true;
+    resource.element.removeEventListener('transitionend', onTransitionEnd);
     onArrival();
     saveGameState();
-  }, 840);
+  };
+  const onTransitionEnd = (event) => {
+    if (event.propertyName === 'left') finishMove();
+  };
+  resource.element.addEventListener('transitionend', onTransitionEnd);
+  setResourcePosition(resource, cell, entryFrom);
+  resource.positionSide = entryFrom;
+  window.setTimeout(() => {
+    finishMove();
+  }, duration + 80);
 }
 
 function isConveyorFull(cell, resource) {
@@ -608,13 +759,128 @@ function isConveyorFull(cell, resource) {
     && item.cell?.y === cell.y).length >= MAX_CONVEYOR_ITEMS;
 }
 
-function arriveAtConveyor(resource, cell) {
-  if (getConfirmedConveyorAt(cell) && isConveyorFull(cell, resource)) {
+function sideToward(from, to) {
+  if (to.x > from.x) return 'right';
+  if (to.x < from.x) return 'left';
+  if (to.y > from.y) return 'bottom';
+  return 'top';
+}
+
+function getCrusherResources(level) {
+  return drillResources.slice(1, Math.min(drillResources.length, Math.max(1, level) + 1));
+}
+
+function getCrusherInterval(level) {
+  const progress = (Math.min(MAX_CRUSHER_LEVEL, Math.max(1, level)) - 1) / (MAX_CRUSHER_LEVEL - 1);
+  return 2_000 - progress * 1_500;
+}
+
+function getFurnaceResources(level) {
+  return crushedResources.slice(0, Math.min(crushedResources.length, Math.max(1, level)));
+}
+
+function getFurnaceInterval(level) {
+  const progress = (Math.min(MAX_FURNACE_LEVEL, Math.max(1, level)) - 1) / (MAX_FURNACE_LEVEL - 1);
+  return 2_000 - progress * 1_500;
+}
+
+function formatFurnaceRate(level) {
+  const seconds = getFurnaceInterval(level) / 1000;
+  return `Переплавка: 1 раз в ${Number.isInteger(seconds) ? seconds : seconds.toFixed(1)} сек.`;
+}
+
+function formatCrusherRate(level) {
+  const seconds = getCrusherInterval(level) / 1000;
+  return `Переработка: 1 раз в ${Number.isInteger(seconds) ? seconds : seconds.toFixed(1)} сек.`;
+}
+
+function acceptCrusherResource(resource, crusher, fromCell) {
+  const incomingSide = oppositeSide(sideToward(fromCell, {
+    x: Number(crusher.dataset.cellKey.split(':')[0]),
+    y: Number(crusher.dataset.cellKey.split(':')[1]),
+  }));
+  const allowedResources = getCrusherResources(Number(crusher.dataset.level ?? 1));
+  const accepted = incomingSide !== (crusher.dataset.activeSide ?? 'bottom')
+    && allowedResources.some((item) => item.id === resource.resourceId);
+  if (!accepted) {
     removeResource(resource);
     return;
   }
-  resource.cell = { ...cell };
-  advanceResource(resource, cell);
+  const queuedId = crusher.dataset.crusherInputId;
+  if (queuedId && queuedId !== resource.resourceId) {
+    removeResource(resource);
+    return;
+  }
+  crusher.dataset.crusherInputId = resource.resourceId;
+  crusher.dataset.crusherInputCount = String(Number(crusher.dataset.crusherInputCount ?? 0) + 1);
+  resource.element.remove();
+  movingResources.delete(resource);
+  if (selectedCrusher === crusher) renderCrusherMenu(crusher);
+  saveGameState();
+}
+
+function acceptFurnaceResource(resource, furnace, fromCell) {
+  const [x, y] = furnace.dataset.cellKey.split(':').map(Number);
+  const incomingSide = oppositeSide(sideToward(fromCell, { x, y }));
+  const allowedResources = getFurnaceResources(Number(furnace.dataset.level ?? 1));
+  const accepted = incomingSide !== (furnace.dataset.activeSide ?? 'bottom')
+    && allowedResources.some((item) => item.id === resource.resourceId);
+  if (!accepted) {
+    removeResource(resource);
+    return;
+  }
+  const queuedId = furnace.dataset.furnaceInputId;
+  if (queuedId && queuedId !== resource.resourceId) {
+    removeResource(resource);
+    return;
+  }
+  furnace.dataset.furnaceInputId = resource.resourceId;
+  furnace.dataset.furnaceInputCount = String(Number(furnace.dataset.furnaceInputCount ?? 0) + 1);
+  resource.element.remove();
+  movingResources.delete(resource);
+  if (selectedFurnace === furnace) renderFurnaceMenu(furnace);
+  saveGameState();
+}
+
+function acceptWarehouseResource(resource, warehouse, fromCell) {
+  const [x, y] = warehouse.dataset.cellKey.split(':').map(Number);
+  const incomingSide = oppositeSide(sideToward(fromCell, { x, y }));
+  if (incomingSide === (warehouse.dataset.activeSide ?? 'bottom')) {
+    removeResource(resource);
+    return;
+  }
+  addToInventory(resource.resourceId);
+  resource.element.remove();
+  movingResources.delete(resource);
+  saveGameState();
+}
+
+function arriveAtCell(resource, cell) {
+  const conveyor = getConfirmedConveyorAt(cell);
+  const crusher = buildings.get(`${cell.x}:${cell.y}`);
+  if (conveyor && isConveyorFull(cell, resource)) {
+    removeResource(resource);
+    return;
+  }
+  if (conveyor) {
+    resource.cell = { ...cell };
+    resource.positionSide = null;
+    advanceResource(resource, cell);
+    return;
+  }
+  if (crusher?.classList.contains('building--crusher')) {
+    acceptCrusherResource(resource, crusher, resource.cell);
+    return;
+  }
+  if (crusher?.classList.contains('building--furnace')) {
+    acceptFurnaceResource(resource, crusher, resource.cell);
+    return;
+  }
+  if (crusher?.classList.contains('building--warehouse')) {
+    acceptWarehouseResource(resource, crusher, resource.cell);
+    return;
+  }
+  removeResource(resource);
 }
 
 function advanceResource(resource, cell) {
@@ -628,22 +894,84 @@ function advanceResource(resource, cell) {
     removeResource(resource);
     return;
   }
-  moveResourceTo(resource, target, () => arriveAtConveyor(resource, target));
+  const targetBuilding = buildings.get(`${target.x}:${target.y}`);
+  moveResourceTo(resource, target, () => arriveAtCell(resource, target), Boolean(targetBuilding));
 }
 
 function produceDrillResource(drill) {
   const [x, y] = drill.dataset.cellKey.split(':').map(Number);
   const source = { x, y };
-  const target = cellNextTo(source, drill.dataset.activeSide ?? 'bottom');
   const minedResource = pickDrillResource(Number(drill.dataset.level ?? 1));
-  const resource = createMovingResource(minedResource, source);
-  window.requestAnimationFrame(() => {
-    if (!isCellOnMap(target)) {
-      removeResource(resource);
-      return;
-    }
-    moveResourceTo(resource, target, () => arriveAtConveyor(resource, target));
-  });
+  emitResource(minedResource, source, drill.dataset.activeSide ?? 'bottom');
+}
+
+function runCrushers() {
+  const now = Date.now();
+  [...buildings.values()]
+    .filter((building) => building.classList.contains('building--crusher'))
+    .forEach((crusher) => {
+      const count = Number(crusher.dataset.crusherInputCount ?? 0);
+      const inputId = crusher.dataset.crusherInputId;
+      if (!inputId || count <= 0) return;
+      const interval = getCrusherInterval(Number(crusher.dataset.level ?? 1));
+      const nextProcessAt = Number(crusher.dataset.crusherNextProcessAt);
+      if (!nextProcessAt) {
+        crusher.dataset.crusherNextProcessAt = String(now + interval);
+        if (selectedCrusher === crusher) renderCrusherMenu(crusher);
+        return;
+      }
+      if (now < nextProcessAt) {
+        if (selectedCrusher === crusher) renderCrusherMenu(crusher);
+        return;
+      }
+      const output = crushedResources.find((resource) => resource.id === `${inputId}-powder`);
+      crusher.dataset.crusherInputCount = String(count - 1);
+      if (count <= 1) delete crusher.dataset.crusherInputId;
+      delete crusher.dataset.crusherNextProcessAt;
+      if (output) {
+        const [x, y] = crusher.dataset.cellKey.split(':').map(Number);
+        const source = { x, y };
+        emitResource(output, source, crusher.dataset.activeSide ?? 'bottom');
+      }
+      if (selectedCrusher === crusher) renderCrusherMenu(crusher);
+      saveGameState();
+    });
+}
+
+function runFurnaces() {
+  const now = Date.now();
+  [...buildings.values()]
+    .filter((building) => building.classList.contains('building--furnace'))
+    .forEach((furnace) => {
+      const count = Number(furnace.dataset.furnaceInputCount ?? 0);
+      const inputId = furnace.dataset.furnaceInputId;
+      if (!inputId || count <= 0) return;
+      const interval = getFurnaceInterval(Number(furnace.dataset.level ?? 1));
+      const nextProcessAt = Number(furnace.dataset.furnaceNextProcessAt);
+      if (!nextProcessAt) {
+        furnace.dataset.furnaceNextProcessAt = String(now + interval);
+        if (selectedFurnace === furnace) renderFurnaceMenu(furnace);
+        return;
+      }
+      if (now < nextProcessAt) {
+        if (selectedFurnace === furnace) renderFurnaceMenu(furnace);
+        return;
+      }
+      const outputId = inputId === 'diamond-powder' ? 'diamond' : inputId.replace('-powder', '-ingot');
+      const output = smeltedResources.find((resource) => resource.id === outputId);
+      furnace.dataset.furnaceInputCount = String(count - 1);
+      if (count <= 1) delete furnace.dataset.furnaceInputId;
+      delete furnace.dataset.furnaceNextProcessAt;
+      if (output) {
+        const [x, y] = furnace.dataset.cellKey.split(':').map(Number);
+        const source = { x, y };
+        [0, 1].forEach(() => {
+          emitResource(output, source, furnace.dataset.activeSide ?? 'bottom');
+        });
+      }
+      if (selectedFurnace === furnace) renderFurnaceMenu(furnace);
+      saveGameState();
+    });
 }
 
 function runDrills() {
@@ -665,13 +993,15 @@ function runDrills() {
 }
 
 function openDrillMenu(drill) {
+  closeCrusherMenu();
+  closeFurnaceMenu();
   selectedDrill = drill;
   const level = Number(drill.dataset.level ?? 1);
   machineLevel.textContent = `Уровень ${level} из ${MAX_DRILL_LEVEL}`;
   machineRate.textContent = formatProductionRate(level);
   machineDropList.innerHTML = getDrillChances(level).map((resource) => `
     <div class="machine-drop">
-      <i class="resource-swatch" style="background:${resource.color}" aria-hidden="true"></i>
+      <i class="resource-swatch" style="background:${resource.color}" aria-hidden="true">${resource.image ? `<img src="${resource.image}" alt="">` : ''}</i>
       <span>${resource.name}</span>
       <b>${resource.chance}%</b>
     </div>
@@ -686,6 +1016,87 @@ function openDrillMenu(drill) {
 function closeMachineMenu() {
   machineMenu.classList.remove('is-visible');
   selectedDrill = null;
+}
+
+function renderCrusherMenu(crusher) {
+  const level = Number(crusher.dataset.level ?? 1);
+  const inputId = crusher.dataset.crusherInputId;
+  const input = getResourceType(inputId);
+  const output = input ? crushedResources.find((resource) => resource.id === `${input.id}-powder`) : null;
+  const count = Number(crusher.dataset.crusherInputCount ?? 0);
+  const interval = getCrusherInterval(level);
+  const nextProcessAt = Number(crusher.dataset.crusherNextProcessAt ?? 0);
+  const progress = nextProcessAt ? Math.max(0, Math.min(1, 1 - ((nextProcessAt - Date.now()) / interval))) : 0;
+  crusherLevel.textContent = `Уровень ${level} из ${MAX_CRUSHER_LEVEL}`;
+  crusherRate.textContent = formatCrusherRate(level);
+  crusherInputIcon.style.background = input?.color ?? '#dfe4e8';
+  crusherInputIcon.innerHTML = input?.image ? `<img src="${input.image}" alt="">` : '';
+  crusherInputName.textContent = input?.name ?? 'Нет руды';
+  crusherInputCount.textContent = String(count);
+  crusherOutputIcon.style.background = output?.color ?? '#dfe4e8';
+  crusherOutputIcon.innerHTML = output?.image ? `<img src="${output.image}" alt="">` : '';
+  crusherOutputName.textContent = output?.name ?? '—';
+  crusherOutputCount.textContent = output ? String(count * 2) : '0';
+  crusherArrowProgress.style.width = `${progress * 100}%`;
+  const available = getCrusherResources(level).map((resource) => resource.name).join(', ');
+  crusherAvailable.textContent = available ? `Принимает: ${available}` : 'На этом уровне ещё не принимает руду.';
+  crusherUpgrade.textContent = level >= MAX_CRUSHER_LEVEL
+    ? 'Максимальный уровень'
+    : `Улучшить · ${CRUSHER_UPGRADE_COST} $`;
+  crusherUpgrade.disabled = level >= MAX_CRUSHER_LEVEL || getMoney() < CRUSHER_UPGRADE_COST;
+}
+
+function openCrusherMenu(crusher) {
+  closeMachineMenu();
+  closeFurnaceMenu();
+  selectedCrusher = crusher;
+  renderCrusherMenu(crusher);
+  crusherMenu.classList.add('is-visible');
+}
+
+function closeCrusherMenu() {
+  crusherMenu.classList.remove('is-visible');
+  selectedCrusher = null;
+}
+
+function renderFurnaceMenu(furnace) {
+  const level = Number(furnace.dataset.level ?? 1);
+  const inputId = furnace.dataset.furnaceInputId;
+  const input = getResourceType(inputId);
+  const outputId = inputId === 'diamond-powder' ? 'diamond' : inputId?.replace('-powder', '-ingot');
+  const output = smeltedResources.find((resource) => resource.id === outputId);
+  const count = Number(furnace.dataset.furnaceInputCount ?? 0);
+  const interval = getFurnaceInterval(level);
+  const nextProcessAt = Number(furnace.dataset.furnaceNextProcessAt ?? 0);
+  const progress = nextProcessAt ? Math.max(0, Math.min(1, 1 - ((nextProcessAt - Date.now()) / interval))) : 0;
+  furnaceLevel.textContent = `Уровень ${level} из ${MAX_FURNACE_LEVEL}`;
+  furnaceRate.textContent = formatFurnaceRate(level);
+  furnaceInputIcon.style.background = input?.color ?? '#dfe4e8';
+  furnaceInputName.textContent = input?.name ?? 'Нет порошка';
+  furnaceInputCount.textContent = String(count);
+  furnaceOutputIcon.style.background = output?.color ?? '#dfe4e8';
+  furnaceOutputName.textContent = output?.name ?? '—';
+  furnaceOutputCount.textContent = output ? String(count) : '0';
+  furnaceArrowProgress.style.width = `${progress * 100}%`;
+  const available = getFurnaceResources(level).map((resource) => resource.name).join(', ');
+  furnaceAvailable.textContent = available ? `Принимает: ${available}` : 'На этом уровне ещё не принимает порошок.';
+  furnaceUpgrade.textContent = level >= MAX_FURNACE_LEVEL
+    ? 'Максимальный уровень'
+    : `Улучшить · ${FURNACE_UPGRADE_COST} $`;
+  furnaceUpgrade.disabled = level >= MAX_FURNACE_LEVEL || getMoney() < FURNACE_UPGRADE_COST;
+}
+
+function openFurnaceMenu(furnace) {
+  closeMachineMenu();
+  closeCrusherMenu();
+  selectedFurnace = furnace;
+  renderFurnaceMenu(furnace);
+  furnaceMenu.classList.add('is-visible');
+}
+
+function closeFurnaceMenu() {
+  furnaceMenu.classList.remove('is-visible');
+  selectedFurnace = null;
 }
 
 function placeBuilding(cell) {
@@ -843,6 +1254,7 @@ function renderCamera() {
 
 map.addEventListener('pointerdown', (event) => {
   if (event.button !== 0) return;
+  setInventoryOpen(false);
   const building = event.target.closest('.building');
   if (deleteMode && building && !building.classList.contains('building--draft')) {
     toggleBuildingDeletion(building);
@@ -860,7 +1272,22 @@ map.addEventListener('pointerdown', (event) => {
     openDrillMenu(building);
     return;
   }
+  if (building?.classList.contains('building--crusher') && !selectedProduct && !draftBuildings.size) {
+    openCrusherMenu(building);
+    return;
+  }
+  if (building?.classList.contains('building--furnace') && !selectedProduct && !draftBuildings.size) {
+    openFurnaceMenu(building);
+    return;
+  }
+  if (building?.classList.contains('building--warehouse') && !selectedProduct && !draftBuildings.size) {
+    setShopOpen(false);
+    setInventoryOpen(true);
+    return;
+  }
   closeMachineMenu();
+  closeCrusherMenu();
+  closeFurnaceMenu();
   pointerStart = { x: event.clientX, y: event.clientY, cameraX: camera.x, cameraY: camera.y };
   map.classList.add('is-panning');
   map.setPointerCapture(event.pointerId);
@@ -926,6 +1353,8 @@ renderShop();
 renderInventory();
 restoreServerGameState();
 window.setInterval(runDrills, 250);
+window.setInterval(runCrushers, 100);
+window.setInterval(runFurnaces, 100);
 
 shopButton.addEventListener('click', () => {
   setShopOpen(!shopPopover.classList.contains('is-open'));
@@ -974,6 +1403,26 @@ machineUpgrade.addEventListener('click', () => {
   delete selectedDrill.dataset.nextProductionAt;
   setMoney(getMoney() - DRILL_UPGRADE_COST);
   openDrillMenu(selectedDrill);
+  saveGameState();
+});
+
+crusherUpgrade.addEventListener('click', () => {
+  if (!selectedCrusher || !buildings.has(selectedCrusher.dataset.cellKey)
+    || Number(selectedCrusher.dataset.level ?? 1) >= MAX_CRUSHER_LEVEL
+    || getMoney() < CRUSHER_UPGRADE_COST) return;
+  selectedCrusher.dataset.level = String(Number(selectedCrusher.dataset.level ?? 1) + 1);
+  setMoney(getMoney() - CRUSHER_UPGRADE_COST);
+  renderCrusherMenu(selectedCrusher);
+  saveGameState();
+});
+
+furnaceUpgrade.addEventListener('click', () => {
+  if (!selectedFurnace || !buildings.has(selectedFurnace.dataset.cellKey)
+    || Number(selectedFurnace.dataset.level ?? 1) >= MAX_FURNACE_LEVEL
+    || getMoney() < FURNACE_UPGRADE_COST) return;
+  selectedFurnace.dataset.level = String(Number(selectedFurnace.dataset.level ?? 1) + 1);
+  setMoney(getMoney() - FURNACE_UPGRADE_COST);
+  renderFurnaceMenu(selectedFurnace);
   saveGameState();
 });
 

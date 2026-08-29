@@ -83,6 +83,16 @@
       <aside class="shop-popover" id="shopPopover" aria-label="Магазин">
         <div class="shop-grid"></div>
       </aside>
+      <section class="placement-menu" id="placementMenu" aria-label="Подтверждение размещения">
+        <strong class="placement-name"></strong>
+        <button class="placement-button placement-button--confirm" id="confirmPlacement" type="button" aria-label="Подтвердить размещение">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>
+        </button>
+        <button class="placement-button placement-button--cancel" id="discardPlacement" type="button" aria-label="Отменить размещение">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+        </button>
+      </section>
+      <div class="build-preview" id="buildPreview" aria-hidden="true"></div>
     </main>
 
     <script src="factory.js"></script>

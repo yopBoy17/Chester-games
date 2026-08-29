@@ -36,6 +36,7 @@ h1 { margin: 0; font-size: clamp(2.25rem, 6vw, 4rem); line-height: 1; }
 .game-card:hover { transform: translateY(-2px); box-shadow: 0 18px 35px rgba(28, 48, 83, .13); }
 .game-icon { display: grid; width: 50px; height: 50px; place-items: center; color: #fff; font-size: 2.1rem; background: #397cf2; border-radius: 15px; }
 .game-icon--factory { background: #39a970; }
+.game-icon--cards { background: #8a65c7; }
 .game-copy { display: grid; gap: 5px; }
 .game-copy strong { font-size: 1.25rem; }
 .game-copy small { color: #69768c; font-size: .94rem; }

@@ -1,11 +1,11 @@
 const CACHE_NAME = "planet-flow-v1";
 const APP_FILES = [
-  "/",
-  "/index.html",
-  "/styles.css",
-  "/game.js",
-  "/manifest.webmanifest",
-  "/icon.svg",
+  "./",
+  "./index.html",
+  "./styles.css",
+  "./game.js",
+  "./manifest.webmanifest",
+  "./icon.svg",
 ];
 
 self.addEventListener("install", (event) => {
@@ -34,6 +34,6 @@ self.addEventListener("fetch", (event) => {
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
         return response;
       })
-      .catch(() => caches.match(event.request).then((cached) => cached || caches.match("/"))),
+      .catch(() => caches.match(event.request).then((cached) => cached || caches.match("./"))),
   );
 });

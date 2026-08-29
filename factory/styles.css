@@ -333,7 +333,7 @@ body {
   border-radius: 2px;
   pointer-events: none;
   transform: translate(-50%, -50%);
-  transition: left 0.4s linear, top 0.4s linear, opacity 0.16s ease;
+  transition: left 0.84s linear, top 0.84s linear, opacity 0.16s ease;
 }
 
 .factory-item--coal,

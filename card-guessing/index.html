@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Карточки</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <section class="screen screen--start" id="startScreen">
+      <p class="eyebrow">Chester Games</p>
+      <h1>Угадай карточку</h1>
+      <p class="lead">Выберите тайные карточки, задавайте вопросы очно и закрывайте неподходящие варианты.</p>
+      <div class="start-actions">
+        <button class="primary" id="createRoom" type="button">Создать комнату</button>
+        <div class="join-row"><input id="roomCode" inputmode="numeric" maxlength="4" placeholder="Код комнаты" /><button class="secondary" id="joinRoom" type="button">Войти</button></div>
+      </div>
+      <p class="notice" id="notice" role="status"></p>
+    </section>
+
+    <section class="screen is-hidden" id="roomScreen">
+      <p class="eyebrow">Комната</p>
+      <h1 id="roomTitle">----</h1>
+      <div class="topic-card"><span>Тема</span><strong>Фильмы Marvel</strong><small>20 карточек</small></div>
+      <p class="room-status" id="roomStatus">Ждём второго игрока…</p>
+      <button class="primary is-hidden" id="startGame" type="button">Начать игру</button>
+    </section>
+
+    <section class="game is-hidden" id="gameScreen">
+      <header class="game-header"><div><p class="eyebrow">Фильмы Marvel</p><h1 id="gameTitle">Выбери тайную карточку</h1></div><p class="turn-note" id="turnNote"></p></header>
+      <div class="cards" id="cards"></div>
+      <p class="hint" id="gameHint">Нажми на фильм, который ты загадываешь. Соперник его не увидит.</p>
+    </section>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>

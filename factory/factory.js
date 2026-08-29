@@ -76,6 +76,7 @@ const FURNACE_UPGRADE_COST = 10;
 const MAX_FURNACE_LEVEL = 9;
 const MAX_CONVEYOR_ITEMS = 20;
 const CONVEYOR_TRAVEL_MS = 1_400;
+const CONVEYOR_TURN_PAUSE_MS = 120;
 const inventoryItems = [
   { id: 'trash', name: 'Мусор', color: '#6f7780', sellPrice: 1 },
 ];
@@ -715,6 +716,7 @@ function emitResource(resourceType, source, side) {
   }
   resource.cell = { ...target };
   placeResourceImmediately(resource, target);
+  resource.lastDirection = side;
   advanceResource(resource, target);
 }
 
@@ -748,6 +750,7 @@ function moveResourceTo(resource, cell, onArrival, stopAtEntry = false) {
   resource.element.addEventListener('transitionend', onTransitionEnd);
   setResourcePosition(resource, cell, entryFrom);
   resource.positionSide = entryFrom;
+  resource.lastDirection = travelDirection;
   window.setTimeout(() => {
     finishMove();
   }, duration + 80);
@@ -865,7 +868,13 @@ function arriveAtCell(resource, cell) {
   if (conveyor) {
     resource.cell = { ...cell };
     resource.positionSide = null;
-    advanceResource(resource, cell);
+    const outgoingDirection = directionForRotation(conveyor.dataset.rotation ?? 0);
+    const continuePath = () => advanceResource(resource, cell);
+    if (resource.lastDirection && resource.lastDirection !== outgoingDirection) {
+      window.setTimeout(continuePath, CONVEYOR_TURN_PAUSE_MS);
+    } else {
+      continuePath();
+    }
     return;
   }
   if (crusher?.classList.contains('building--crusher')) {

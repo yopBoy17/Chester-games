@@ -4,8 +4,12 @@ const shopButton = document.querySelector('#shopButton');
 const moveButton = document.querySelector('#moveButton');
 const rotateButton = document.querySelector('#rotateButton');
 const cancelButton = document.querySelector('#cancelButton');
+const inventoryButton = document.querySelector('#inventoryButton');
 const shopPopover = document.querySelector('#shopPopover');
 const shopGrid = document.querySelector('.shop-grid');
+const inventoryPopover = document.querySelector('#inventoryPopover');
+const inventoryGrid = document.querySelector('#inventoryGrid');
+const inventoryDetail = document.querySelector('#inventoryDetail');
 const buildPreview = document.querySelector('#buildPreview');
 const placementMenu = document.querySelector('#placementMenu');
 const placementName = document.querySelector('.placement-name');
@@ -21,6 +25,7 @@ const MAP_SIZE = 10;
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 1;
 const STORAGE_KEY = 'chester-games.factory.save.v1';
+const SAVE_API_URL = new URL('api/save', window.location.href).href;
 const camera = { x: 0, y: 0, scale: 1 };
 let pointerStart = null;
 let selectedProduct = null;
@@ -39,6 +44,13 @@ const buildingsMarkedForDeletion = new Set();
 const movingResources = new Set();
 const DRILL_UPGRADE_COST = 10;
 const MAX_DRILL_LEVEL = 9;
+const MAX_CONVEYOR_ITEMS = 20;
+const inventoryItems = [
+  { id: 'trash', name: 'Мусор', color: '#6f7780', sellPrice: 1 },
+];
+let inventory = { trash: 0 };
+let selectedInventoryItemId = null;
+let saveSyncTimer = null;
 const drillResources = [
   { id: 'coal', name: 'Уголь', color: '#202329' },
   { id: 'iron', name: 'Железо', color: '#73808b' },
@@ -136,9 +148,26 @@ function saveGameState() {
       ...[...buildings.values()].map((building) => serializeBuilding(building, false)),
       ...[...draftBuildings.values()].map((building) => serializeBuilding(building, true)),
     ],
+    conveyorItems: [...movingResources]
+      .filter((item) => item.cell && getConfirmedConveyorAt(item.cell))
+      .map((item) => ({ resourceId: item.resourceId, x: item.cell.x, y: item.cell.y })),
+    inventory,
     selectedProductId: selectedProduct?.id ?? null,
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  syncGameState(state);
+}
+
+function syncGameState(state) {
+  if (window.location.protocol === 'file:') return;
+  window.clearTimeout(saveSyncTimer);
+  saveSyncTimer = window.setTimeout(() => {
+    fetch(SAVE_API_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(state),
+    }).catch(() => {});
+  }, 250);
 }
 
 function renderShop() {
@@ -162,6 +191,51 @@ function renderShop() {
       <p class="product-description">${product.description}</p>
     </article>
   `).join('');
+}
+
+function renderInventory() {
+  const filledSlots = inventoryItems
+    .filter((item) => Number(inventory[item.id] ?? 0) > 0)
+    .map((item) => ({ ...item, count: Number(inventory[item.id]) }));
+  const slots = [...filledSlots, ...Array.from({ length: 100 - filledSlots.length }, () => null)];
+  inventoryGrid.innerHTML = slots.map((item) => item
+    ? `<button class="inventory-slot" type="button" data-item-id="${item.id}" title="${item.name}">
+        <i class="inventory-item-icon" style="background:${item.color}" aria-hidden="true"></i>
+        <span class="inventory-count">${item.count}</span>
+      </button>`
+    : '<div class="inventory-slot is-empty" aria-label="Пустая ячейка"><span class="inventory-count"></span></div>')
+    .join('');
+  renderInventoryDetail();
+}
+
+function renderInventoryDetail() {
+  const item = inventoryItems.find((entry) => entry.id === selectedInventoryItemId);
+  const count = item ? Number(inventory[item.id] ?? 0) : 0;
+  if (!item || count <= 0) {
+    selectedInventoryItemId = null;
+    inventoryDetail.classList.remove('is-visible');
+    inventoryDetail.innerHTML = '';
+    return;
+  }
+  inventoryDetail.innerHTML = `
+    <i class="inventory-detail-preview" style="background:${item.color}" aria-hidden="true"></i>
+    <strong>${item.name}</strong>
+    <span>Количество: ${count}</span>
+    <span>Цена: ${item.sellPrice} $ за шт.</span>
+    <button class="inventory-sell" type="button" data-item-id="${item.id}">Продать всё · ${count * item.sellPrice} $</button>
+  `;
+  inventoryDetail.classList.add('is-visible');
+}
+
+function addToInventory(itemId, amount = 1) {
+  inventory[itemId] = Math.max(0, Number(inventory[itemId] ?? 0) + amount);
+  renderInventory();
+}
+
+function setInventoryOpen(open) {
+  inventoryPopover.classList.toggle('is-open', open);
+  inventoryButton.classList.toggle('is-active', open);
+  inventoryButton.setAttribute('aria-expanded', String(open));
 }
 
 function setShopOpen(isOpen) {
@@ -353,15 +427,34 @@ function createBuilding(product, cell, options = {}) {
   return building;
 }
 
-function restoreGameState() {
-  let state;
-  try {
-    state = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
-  } catch {
-    localStorage.removeItem(STORAGE_KEY);
-    return;
+function clearGameState() {
+  movingResources.forEach((resource) => resource.element.remove());
+  movingResources.clear();
+  buildings.forEach((building) => building.remove());
+  draftBuildings.forEach((building) => building.remove());
+  buildings.clear();
+  draftBuildings.clear();
+  selectedProduct = null;
+}
+
+function restoreGameState(savedState = null, replaceCurrent = false) {
+  let state = savedState;
+  if (!state) {
+    try {
+      state = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
+    } catch {
+      localStorage.removeItem(STORAGE_KEY);
+      return false;
+    }
   }
-  if (!state) return;
+  if (!state || typeof state !== 'object') return false;
+  if (replaceCurrent) clearGameState();
+
+  if (state.inventory && typeof state.inventory === 'object') {
+    inventory = {
+      trash: Math.max(0, Number(state.inventory.trash) || 0),
+    };
+  }
 
   state.resources?.forEach((savedResource, index) => {
     const resource = document.querySelectorAll('.resource')[index];
@@ -400,6 +493,34 @@ function restoreGameState() {
     placementMenu.classList.add('is-visible');
   }
   refreshConveyors();
+
+  state.conveyorItems?.forEach((savedItem) => {
+    const resource = drillResources.find((item) => item.id === savedItem.resourceId);
+    const cell = { x: Number(savedItem.x), y: Number(savedItem.y) };
+    if (!resource || !isCellOnMap(cell) || !getConfirmedConveyorAt(cell)) return;
+    const item = createMovingResource(resource, cell);
+    advanceResource(item, cell);
+  });
+  return true;
+}
+
+async function restoreServerGameState() {
+  if (window.location.protocol === 'file:') return;
+  try {
+    const response = await fetch(SAVE_API_URL, { cache: 'no-store' });
+    if (!response.ok) return;
+    const state = await response.json();
+    if (state && Object.keys(state).length) {
+      restoreGameState(state, true);
+      renderResources();
+      renderShop();
+      renderInventory();
+    } else {
+      saveGameState();
+    }
+  } catch {
+    // Local storage remains available when the server cannot be reached.
+  }
 }
 
 function cellNextTo(cell, side) {
@@ -451,15 +572,49 @@ function setResourcePosition(resource, cell) {
   resource.element.style.top = `${((cell.y + 0.5) / MAP_SIZE) * 100}%`;
 }
 
+function createMovingResource(resourceType, cell) {
+  const resource = {
+    resourceId: resourceType.id,
+    cell: { ...cell },
+    element: document.createElement('div'),
+  };
+  resource.element.className = `factory-item factory-item--${resourceType.id}`;
+  resource.element.style.background = resourceType.color;
+  setResourcePosition(resource, cell);
+  world.append(resource.element);
+  movingResources.add(resource);
+  return resource;
+}
+
 function removeResource(resource) {
   resource.element.style.opacity = '0';
   movingResources.delete(resource);
+  addToInventory('trash');
+  saveGameState();
   window.setTimeout(() => resource.element.remove(), 160);
 }
 
 function moveResourceTo(resource, cell, onArrival) {
   setResourcePosition(resource, cell);
-  window.setTimeout(onArrival, 840);
+  window.setTimeout(() => {
+    onArrival();
+    saveGameState();
+  }, 840);
+}
+
+function isConveyorFull(cell, resource) {
+  return [...movingResources].filter((item) => item !== resource
+    && item.cell?.x === cell.x
+    && item.cell?.y === cell.y).length >= MAX_CONVEYOR_ITEMS;
+}
+
+function arriveAtConveyor(resource, cell) {
+  if (getConfirmedConveyorAt(cell) && isConveyorFull(cell, resource)) {
+    removeResource(resource);
+    return;
+  }
+  resource.cell = { ...cell };
+  advanceResource(resource, cell);
 }
 
 function advanceResource(resource, cell) {
@@ -473,7 +628,7 @@ function advanceResource(resource, cell) {
     removeResource(resource);
     return;
   }
-  moveResourceTo(resource, target, () => advanceResource(resource, target));
+  moveResourceTo(resource, target, () => arriveAtConveyor(resource, target));
 }
 
 function produceDrillResource(drill) {
@@ -481,18 +636,13 @@ function produceDrillResource(drill) {
   const source = { x, y };
   const target = cellNextTo(source, drill.dataset.activeSide ?? 'bottom');
   const minedResource = pickDrillResource(Number(drill.dataset.level ?? 1));
-  const resource = { element: document.createElement('div') };
-  resource.element.className = `factory-item factory-item--${minedResource.id}`;
-  resource.element.style.background = minedResource.color;
-  setResourcePosition(resource, source);
-  world.append(resource.element);
-  movingResources.add(resource);
+  const resource = createMovingResource(minedResource, source);
   window.requestAnimationFrame(() => {
     if (!isCellOnMap(target)) {
       removeResource(resource);
       return;
     }
-    moveResourceTo(resource, target, () => advanceResource(resource, target));
+    moveResourceTo(resource, target, () => arriveAtConveyor(resource, target));
   });
 }
 
@@ -773,6 +923,8 @@ window.addEventListener('resize', renderCamera);
 restoreGameState();
 renderResources();
 renderShop();
+renderInventory();
+restoreServerGameState();
 window.setInterval(runDrills, 250);
 
 shopButton.addEventListener('click', () => {
@@ -787,6 +939,31 @@ moveButton.addEventListener('click', () => {
 rotateButton.addEventListener('click', () => {
   if (selectedProduct || draftBuildings.size) return;
   setRotateMode(!rotateMode);
+});
+
+inventoryButton.addEventListener('click', () => {
+  setShopOpen(false);
+  setInventoryOpen(!inventoryPopover.classList.contains('is-open'));
+});
+
+inventoryGrid.addEventListener('click', (event) => {
+  const slot = event.target.closest('[data-item-id]');
+  if (!slot) return;
+  selectedInventoryItemId = slot.dataset.itemId;
+  renderInventoryDetail();
+});
+
+inventoryDetail.addEventListener('click', (event) => {
+  const sellButton = event.target.closest('[data-item-id]');
+  if (!sellButton) return;
+  const item = inventoryItems.find((entry) => entry.id === sellButton.dataset.itemId);
+  const count = item ? Number(inventory[item.id] ?? 0) : 0;
+  if (!item || count <= 0) return;
+  inventory[item.id] = 0;
+  selectedInventoryItemId = null;
+  setMoney(getMoney() + count * item.sellPrice);
+  renderInventory();
+  saveGameState();
 });
 
 machineUpgrade.addEventListener('click', () => {
@@ -818,6 +995,7 @@ shopGrid.addEventListener('click', (event) => {
 
 cancelButton.addEventListener('click', () => {
   setShopOpen(false);
+  setInventoryOpen(false);
   if (deleteMode) {
     setDeleteMode(false);
     placementMenu.classList.remove('is-visible');

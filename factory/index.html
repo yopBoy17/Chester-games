@@ -78,10 +78,24 @@
               <path d="m6 6 12 12M18 6 6 18" />
             </svg>
           </button>
+          <button class="action-button action-button--inventory" id="inventoryButton" type="button" aria-label="Открыть инвентарь" aria-expanded="false" aria-controls="inventoryPopover">
+            <svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="4" y="5" width="16" height="15" rx="2" />
+              <path d="M4 10h16M9 5v5M15 5v5" />
+            </svg>
+          </button>
         </div>
       </footer>
       <aside class="shop-popover" id="shopPopover" aria-label="Магазин">
         <div class="shop-grid"></div>
+      </aside>
+      <aside class="inventory-popover" id="inventoryPopover" aria-label="Инвентарь">
+        <header class="inventory-header">
+          <strong>Инвентарь</strong>
+          <span>100 ячеек</span>
+        </header>
+        <div class="inventory-grid" id="inventoryGrid"></div>
+        <section class="inventory-detail" id="inventoryDetail" aria-live="polite"></section>
       </aside>
       <section class="placement-menu" id="placementMenu" aria-label="Подтверждение размещения">
         <strong class="placement-name"></strong>

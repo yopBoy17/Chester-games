@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <div class="game-loader" id="gameLoader" role="status"><strong>Factory</strong><span>Загрузка ресурсов…</span></div>
     <main class="factory-app">
       <header class="toolbar" aria-label="Панель ресурсов">
         <div class="resource-group resource-group--energy">
@@ -52,6 +53,7 @@
 
       <section class="map" aria-label="Карта фабрики">
         <div class="world" aria-hidden="true"></div>
+        <div class="phaser-stage" id="phaserStage" aria-label="Игровое поле"></div>
       </section>
       <footer class="bottom-panel" aria-label="Нижняя панель">
         <div class="action-bar">
@@ -94,6 +96,9 @@
           <strong>Инвентарь</strong>
           <span>100 ячеек</span>
         </header>
+        <nav class="inventory-tabs" id="inventoryTabs" aria-label="Категории инвентаря">
+          <button type="button" data-tab="all" class="is-active">Всё</button><button type="button" data-tab="ores">Руда</button><button type="button" data-tab="powders">Порошки</button><button type="button" data-tab="ingots">Слитки</button><button type="button" data-tab="components">Компоненты</button>
+        </nav>
         <div class="inventory-grid" id="inventoryGrid"></div>
         <section class="inventory-detail" id="inventoryDetail" aria-live="polite"></section>
       </aside>
@@ -137,9 +142,35 @@
         <p class="furnace-available"></p>
         <button class="machine-upgrade" id="furnaceUpgrade" type="button">Улучшить · 10 $</button>
       </section>
+      <section class="crusher-menu" id="pressMenu" aria-label="Меню пресса">
+        <strong>Пресс</strong><span class="press-level"></span><span class="press-rate"></span>
+        <div class="crusher-process"><div class="crusher-slot"><i class="press-input-icon"></i><span class="press-input-name">Нет слитка</span><b class="press-input-count">0</b></div><div class="crusher-arrow press-arrow"><span></span><svg viewBox="0 0 24 24"><path d="M4 12h13m-5-5 5 5-5 5"/></svg></div><div class="crusher-slot"><i class="press-output-icon"></i><span class="press-output-name">—</span><b class="press-output-count">0</b></div></div>
+        <p class="press-available crusher-available"></p><button class="machine-upgrade" id="pressUpgrade" type="button">Улучшить</button>
+      </section>
+      <section class="crusher-menu" id="filterMenu" aria-label="Меню фильтра">
+        <strong>Фильтр</strong>
+        <p class="crusher-available">До 6 выбранных ресурсов выходят по белой стрелке. Остальные — по чёрной.</p>
+        <div class="filter-modes" id="filterModes">
+          <button type="button" data-mode="1" title="Белый → · чёрный ↓">А</button>
+          <button type="button" data-mode="2" title="Чёрный → · белый ↓">Б</button>
+          <button type="button" data-mode="3" title="Белый ← · чёрный →">В</button>
+        </div>
+        <div class="filter-items" id="filterItems"></div>
+        <div class="filter-picker" id="filterPicker"></div>
+      </section>
+      <section class="crusher-menu" id="distributorMenu" aria-label="Меню распределителя">
+        <strong>Распределитель</strong>
+        <p class="crusher-available">Ресурсы по очереди уходят в зелёный и красный выходы.</p>
+        <div class="filter-modes" id="distributorModes"><button type="button" data-mode="1">А</button><button type="button" data-mode="2">Б</button></div>
+        <div class="distributor-ratios">
+          <div><b class="distributor-green">Зелёный путь</b><button type="button" data-path="green" data-change="-1">−</button><span id="distributorGreenCount">1</span><button type="button" data-path="green" data-change="1">+</button></div>
+          <div><b class="distributor-red">Красный путь</b><button type="button" data-path="red" data-change="-1">−</button><span id="distributorRedCount">1</span><button type="button" data-path="red" data-change="1">+</button></div>
+        </div>
+      </section>
       <div class="build-preview" id="buildPreview" aria-hidden="true"></div>
     </main>
 
-    <script src="factory.js"></script>
+    <script src="node_modules/phaser/dist/phaser.min.js"></script>
+    <script type="module" src="factory.js"></script>
   </body>
 </html>

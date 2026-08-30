@@ -5,7 +5,7 @@ const path = require('path');
 const PORT = Number(process.env.PORT) || 8081;
 const HOST = '0.0.0.0';
 const ROOT = __dirname;
-const SAVE_FILE = path.join(ROOT, 'data', 'game-save.json');
+const SAVE_FILE = process.env.FACTORY_SAVE_FILE || path.join(ROOT, 'data', 'game-save.json');
 
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',

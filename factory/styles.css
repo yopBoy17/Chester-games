@@ -206,6 +206,16 @@ body {
   will-change: transform;
 }
 
+.phaser-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.world.is-phaser-backed { opacity: 0; }
+body.is-phaser-enabled .build-preview { display: none !important; }
+
 .building {
   position: absolute;
   z-index: 1;
@@ -597,6 +607,32 @@ body {
 .crusher-arrow > span { position: absolute; inset: 0 auto 0 0; width: 0; background: #3bb274; transition: width 100ms linear; }
 .crusher-arrow svg { position: relative; width: 26px; height: 26px; fill: none; stroke: #fff; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.5; }
 .crusher-available { min-height: 1.2em; margin: 0; color: #778493; font-size: .69rem; text-align: center; }
+.filter-modes, .filter-items { display: grid; gap: 6px; }
+.filter-modes { grid-template-columns: repeat(3, 1fr); gap: 0; overflow: hidden; border: 1px solid #cfd7df; border-radius: 9px; background: #fff; }
+.filter-modes button, .filter-items button { padding: 6px; border: 1px solid #cfd7df; border-radius: 7px; background: #fff; color: #526171; font: inherit; font-size: .65rem; cursor: pointer; }
+.filter-modes button.is-selected, .filter-items button.is-selected { border-color: #39a86d; background: #e8f7ee; color: #237b4f; font-weight: 800; }
+.filter-modes button { min-height: 34px; border: 0; border-right: 1px solid #cfd7df; border-radius: 0; font-size: .78rem; font-weight: 800; }
+.filter-modes button:last-child { border-right: 0; }
+.filter-modes button.is-selected { background: #39a86d; color: #fff; }
+.filter-items { grid-template-columns: repeat(3, 1fr); }
+.filter-slot { min-height: 68px; display: grid; place-items: center; gap: 3px; }
+.filter-slot img { width: 32px; height: 32px; object-fit: contain; }
+.filter-slot span { font-size: .62rem; text-align: center; }
+.filter-picker { display: none; grid-template-columns: repeat(2, 1fr); gap: 5px; max-height: 245px; padding-top: 6px; overflow-y: auto; border-top: 1px solid #dde3e8; }
+.filter-picker.is-visible { display: grid; }
+.filter-picker button { display: flex; align-items: center; gap: 6px; min-height: 38px; padding: 5px; border: 1px solid #cfd7df; border-radius: 7px; background: #fff; color: #526171; font: inherit; font-size: .62rem; text-align: left; cursor: pointer; }
+.filter-picker button.is-selected { border-color: #39a86d; background: #e8f7ee; color: #237b4f; }
+.filter-picker img { width: 28px; height: 28px; object-fit: contain; }
+.filter-picker-clear { grid-column: 1 / -1; justify-content: center; }
+.inventory-sell { display: grid; place-items: center; gap: 1px; color: #fff; line-height: 1.05; }
+.inventory-sell span { color: #fff; }
+.inventory-sell span:first-child { font-size: 1.02em; }
+.inventory-sell span:last-child { font-size: .78em; }
+.distributor-ratios { display: grid; gap: 7px; }
+.distributor-ratios > div { display: grid; grid-template-columns: 1fr 30px 28px 30px; align-items: center; gap: 5px; }
+.distributor-ratios button { height: 28px; border: 1px solid #cfd7df; border-radius: 6px; background: #fff; font-weight: 800; cursor: pointer; }
+.distributor-ratios span { text-align: center; font-weight: 800; }
+.distributor-green { color: #2f9e62; }.distributor-red { color: #d04d4d; }
 
 .map.is-panning {
   cursor: grabbing;
@@ -687,6 +723,8 @@ body {
   cursor: pointer;
 }
 
+.inventory-detail .inventory-sell span { color: #fff; }
+
 .inventory-header {
   display: flex;
   justify-content: space-between;
@@ -694,6 +732,10 @@ body {
   margin-bottom: 10px;
   color: #243142;
 }
+.inventory-tabs { display: flex; gap: 5px; margin: -3px 0 9px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.inventory-tabs::-webkit-scrollbar { display: none; }
+.inventory-tabs button { flex: 0 0 calc((100% - 15px) / 4); min-width: calc((100% - 15px) / 4); padding: 5px 3px; border: 1px solid #d0d9e3; border-radius: 7px; background: #fff; color: #64758a; font: inherit; font-size: .68rem; font-weight: 700; cursor: pointer; scroll-snap-align: start; }
+.inventory-tabs button.is-active { border-color: #39a86d; background: #e8f7ee; color: #237b4f; }
 
 .inventory-header strong { font-size: 1.05rem; }
 .inventory-header span { color: #7a8798; font-size: .8rem; }
@@ -702,7 +744,7 @@ body {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 7px;
-  max-height: min(calc(68vh - 58px), 552px);
+  max-height: min(calc(68vh - 118px), 492px);
   padding-right: 3px;
   overflow-y: auto;
 }
@@ -883,3 +925,5 @@ body {
   }
 
 }
+.game-loader { position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; gap: 8px; background: #f7f9fb; color: #263546; text-align: center; transition: opacity .22s ease, visibility .22s ease; }
+.game-loader strong { font-size: 1.3rem; }.game-loader span { color: #718095; font-size: .8rem; }.game-loader.is-hidden { visibility: hidden; opacity: 0; pointer-events: none; }

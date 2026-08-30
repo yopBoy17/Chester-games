@@ -606,6 +606,13 @@ body.is-phaser-enabled .build-preview { display: none !important; }
 .crusher-arrow { position: relative; height: 42px; display: grid; place-items: center; overflow: hidden; border-radius: 21px; background: #d8dde2; }
 .crusher-arrow > span { position: absolute; inset: 0 auto 0 0; width: 0; background: #3bb274; transition: width 100ms linear; }
 .crusher-arrow svg { position: relative; width: 26px; height: 26px; fill: none; stroke: #fff; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.5; }
+.metal-former-arrow { border: 0; cursor: pointer; }
+.metal-former-recipes { display: none; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; max-height: 238px; overflow-y: auto; }
+.metal-former-recipes.is-visible { display: grid; }
+.metal-former-recipes button { display: flex; align-items: center; gap: 6px; min-height: 42px; padding: 5px; border: 1px solid #cfd7df; border-radius: 7px; background: #fff; color: #526171; font: inherit; font-size: .63rem; text-align: left; cursor: pointer; }
+.metal-former-recipes button.is-selected { border-color: #39a86d; background: #e8f7ee; color: #237b4f; font-weight: 800; }
+.metal-former-recipes button:disabled { opacity: .45; cursor: not-allowed; }
+.metal-former-recipes img { width: 30px; height: 30px; object-fit: contain; }
 .crusher-available { min-height: 1.2em; margin: 0; color: #778493; font-size: .69rem; text-align: center; }
 .filter-modes, .filter-items { display: grid; gap: 6px; }
 .filter-modes { grid-template-columns: repeat(3, 1fr); gap: 0; overflow: hidden; border: 1px solid #cfd7df; border-radius: 9px; background: #fff; }
@@ -618,12 +625,15 @@ body.is-phaser-enabled .build-preview { display: none !important; }
 .filter-slot { min-height: 68px; display: grid; place-items: center; gap: 3px; }
 .filter-slot img { width: 32px; height: 32px; object-fit: contain; }
 .filter-slot span { font-size: .62rem; text-align: center; }
-.filter-picker { display: none; grid-template-columns: repeat(2, 1fr); gap: 5px; max-height: 245px; padding-top: 6px; overflow-y: auto; border-top: 1px solid #dde3e8; }
+.filter-picker { display: none; grid-template-columns: 1fr; gap: 5px; max-height: 245px; padding-top: 6px; overflow-y: auto; border-top: 1px solid #dde3e8; }
 .filter-picker.is-visible { display: grid; }
 .filter-picker button { display: flex; align-items: center; gap: 6px; min-height: 38px; padding: 5px; border: 1px solid #cfd7df; border-radius: 7px; background: #fff; color: #526171; font: inherit; font-size: .62rem; text-align: left; cursor: pointer; }
 .filter-picker button.is-selected { border-color: #39a86d; background: #e8f7ee; color: #237b4f; }
 .filter-picker img { width: 28px; height: 28px; object-fit: contain; }
 .filter-picker-clear { grid-column: 1 / -1; justify-content: center; }
+.filter-picker-tabs { position: sticky; top: 0; z-index: 2; display: flex; gap: 4px; overflow-x: auto; padding: 2px 0 5px; background: #f9fafb; }
+.filter-picker-tabs button { flex: 0 0 auto; padding: 5px 8px; font-size: .6rem; }
+.filter-picker-tabs button.is-active { border-color: #39a86d; background: #e8f7ee; color: #237b4f; }
 .inventory-sell { display: grid; place-items: center; gap: 1px; color: #fff; line-height: 1.05; }
 .inventory-sell span { color: #fff; }
 .inventory-sell span:first-child { font-size: 1.02em; }

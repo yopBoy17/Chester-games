@@ -42,6 +42,25 @@ export const pressedResources = smeltedResources.map((resource) => ({
   image: `assets/plates/${resource.id.replace('-ingot', '')}-plate.png`,
 }));
 
+const gearNames = {
+  iron: 'Железная шестерёнка',
+  copper: 'Медная шестерёнка',
+  tin: 'Оловянная шестерёнка',
+  silver: 'Серебряная шестерёнка',
+  gold: 'Золотая шестерёнка',
+  tungsten: 'Вольфрамовая шестерёнка',
+  platinum: 'Платиновая шестерёнка',
+  diamond: 'Алмазная шестерёнка',
+};
+
+export const gearResources = smeltedResources.map((resource) => ({
+  id: resource.id.replace('-ingot', '-gear'),
+  catalogId: resource.catalogId + 20,
+  name: gearNames[resource.id.replace('-ingot', '')],
+  color: resource.color,
+  image: `assets/gears/${resource.id.replace('-ingot', '')}-gear.png`,
+}));
+
 export function getResourceType(resourceId) {
-  return [...drillResources, ...crushedResources, ...smeltedResources, ...pressedResources].find((resource) => resource.id === resourceId) ?? null;
+  return [...drillResources, ...crushedResources, ...smeltedResources, ...pressedResources, ...gearResources].find((resource) => resource.id === resourceId) ?? null;
 }

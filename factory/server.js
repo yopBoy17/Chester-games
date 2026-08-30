@@ -6,6 +6,15 @@ const PORT = Number(process.env.PORT) || 8081;
 const HOST = '0.0.0.0';
 const ROOT = __dirname;
 const SAVE_FILE = process.env.FACTORY_SAVE_FILE || path.join(ROOT, 'data', 'game-save.json');
+let lastSaveLogAt = 0;
+
+function formatMoscowTime(date = new Date()) {
+  return new Intl.DateTimeFormat('ru-RU', {
+    timeZone: 'Europe/Moscow',
+    dateStyle: 'short',
+    timeStyle: 'medium',
+  }).format(date);
+}
 
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',
@@ -44,6 +53,11 @@ const server = http.createServer((request, response) => {
           const state = JSON.parse(body);
           fs.mkdirSync(path.dirname(SAVE_FILE), { recursive: true });
           fs.writeFileSync(SAVE_FILE, JSON.stringify(state));
+          const now = Date.now();
+          if (now - lastSaveLogAt >= 10_000) {
+            lastSaveLogAt = now;
+            console.log(`[${formatMoscowTime()} МСК] Игра сохранена`);
+          }
           response.writeHead(204);
           response.end();
         } catch {

@@ -147,6 +147,19 @@
         <div class="crusher-process"><div class="crusher-slot"><i class="press-input-icon"></i><span class="press-input-name">Нет слитка</span><b class="press-input-count">0</b></div><div class="crusher-arrow press-arrow"><span></span><svg viewBox="0 0 24 24"><path d="M4 12h13m-5-5 5 5-5 5"/></svg></div><div class="crusher-slot"><i class="press-output-icon"></i><span class="press-output-name">—</span><b class="press-output-count">0</b></div></div>
         <p class="press-available crusher-available"></p><button class="machine-upgrade" id="pressUpgrade" type="button">Улучшить</button>
       </section>
+      <section class="crusher-menu" id="metalFormerMenu" aria-label="Меню металлоформовщика">
+        <strong>Металлоформовщик</strong>
+        <span class="metal-former-level"></span>
+        <span class="metal-former-rate"></span>
+        <div class="crusher-process">
+          <div class="crusher-slot"><i class="metal-former-input-icon"></i><span class="metal-former-input-name">Выберите рецепт</span><b class="metal-former-input-count">0</b></div>
+          <button class="crusher-arrow metal-former-arrow" id="metalFormerRecipeButton" type="button" aria-label="Выбрать рецепт"><span></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13m-5-5 5 5-5 5" /></svg></button>
+          <div class="crusher-slot"><i class="metal-former-output-icon"></i><span class="metal-former-output-name">Выберите рецепт</span><b class="metal-former-output-count">0</b></div>
+        </div>
+        <p class="metal-former-status crusher-available">Нажмите на стрелку, чтобы выбрать рецепт.</p>
+        <div class="metal-former-recipes" id="metalFormerRecipes"></div>
+        <button class="machine-upgrade" id="metalFormerUpgrade" type="button">Улучшить</button>
+      </section>
       <section class="crusher-menu" id="filterMenu" aria-label="Меню фильтра">
         <strong>Фильтр</strong>
         <p class="crusher-available">До 6 выбранных ресурсов выходят по белой стрелке. Остальные — по чёрной.</p>
@@ -156,6 +169,7 @@
           <button type="button" data-mode="3" title="Белый ← · чёрный →">В</button>
         </div>
         <div class="filter-items" id="filterItems"></div>
+        <div class="filter-picker-tabs" id="filterPickerTabs"></div>
         <div class="filter-picker" id="filterPicker"></div>
       </section>
       <section class="crusher-menu" id="distributorMenu" aria-label="Меню распределителя">

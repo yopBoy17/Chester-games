@@ -673,9 +673,11 @@ body.is-phaser-enabled .build-preview { display: none !important; }
 .crusher-slot i { width: 28px; height: 28px; border-radius: 5px; background: #dfe4e8; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
 .crusher-slot span { min-height: 1.8em; color: #566575; font-size: .72rem; font-weight: 750; }
 .crusher-slot b { color: #283544; font-size: .8rem; }
-.device-menu-summary { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 8px; padding: 7px 8px; border: 1px solid #d5dde4; border-radius: 9px; background: #fff; }
+.device-menu-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 7px 8px; border: 1px solid #d5dde4; border-radius: 9px; background: #fff; }
 .device-menu-summary > span { color: #667483; font-size: .72rem; font-weight: 750; white-space: nowrap; }
-.device-menu-summary .machine-upgrade { justify-self: end; }
+.device-menu-summary > .device-energy { display: inline-flex; align-items: center; gap: 2px; color: #d94848; }
+.device-energy svg { width: 14px; height: 14px; fill: #e45050; }
+.device-menu-summary .machine-upgrade { margin-left: auto; }
 .device-menu-upgrade--compact { display: inline-flex; width: auto; min-height: 28px; align-items: center; justify-content: center; gap: 4px; margin: 0; padding: 4px 8px; border: 1px solid #72c695; border-radius: 7px; color: #237b4f; background: #e8f7ee; font-size: .65rem; }
 .device-menu-upgrade--compact svg { width: 15px; height: 15px; fill: none; stroke: #25a965; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.5; }
 .device-menu-upgrade--compact:disabled { border-color: #d3d9de; color: #a8b0b7; background: #eef1f3; }
@@ -702,6 +704,21 @@ body.is-phaser-enabled .build-preview { display: none !important; }
 .metal-former-recipes small { color: #7b8793; font-size: .55rem; font-weight: 500; }
 .metal-former-recipes-back { justify-content: center; }
 .recipe-machine-empty { margin: 6px 2px; padding: 12px 8px; border: 1px dashed #cfd7df; border-radius: 8px; color: #7b8793; font-size: .62rem; line-height: 1.35; text-align: center; }
+.generator-storage { display: grid; grid-template-columns: repeat(2, 92px); justify-content: center; gap: 12px; padding: 5px 0; }
+.generator-storage .crusher-slot { min-height: 96px; }
+.generator-storage .crusher-slot i { width: 48px; height: 48px; border-radius: 6px 6px 0 0; }
+.generator-storage .crusher-slot i img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.generator-storage .crusher-slot b { min-width: 48px; padding: 2px 8px; border: 1px solid #cfd7df; border-top: 0; border-radius: 0 0 6px 6px; background: #fff; line-height: 1.2; }
+.generator-storage .generator-burn-slot { grid-template-rows: auto 48px; }
+.generator-storage .generator-flame { position: relative; overflow: hidden; border-radius: 0; background: transparent; box-shadow: none; }
+.generator-flame svg { display: block; width: 48px; height: 48px; }
+.generator-flame-base { fill: #d5dce1; }
+.generator-storage .generator-flame-progress { position: absolute; right: 0; bottom: 0; left: 0; display: block; min-height: 0; height: 0; overflow: hidden; transition: height 250ms linear; }
+.generator-flame-progress svg { position: absolute; bottom: 0; left: 0; }
+.generator-flame-outer { fill: #f06b24; }
+.generator-flame-inner { fill: #ffc928; }
+.device-menu-summary > .generator-output { display: inline-flex; align-items: center; gap: 2px; color: #2f9e62; }
+.generator-output svg { width: 14px; height: 14px; fill: #36b66f; }
 .metal-former-menu--recipe-view .device-menu-summary,
 .metal-former-menu--recipe-view > .crusher-process { display: none; }
 .crusher-available { min-height: 1.2em; margin: 0; color: #778493; font-size: .69rem; text-align: center; }
@@ -733,7 +750,8 @@ body.is-phaser-enabled .build-preview { display: none !important; }
 .distributor-ratios > div { display: grid; grid-template-columns: 1fr 30px 28px 30px; align-items: center; gap: 5px; }
 .distributor-ratios button { height: 28px; border: 1px solid #cfd7df; border-radius: 6px; background: #fff; font-weight: 800; cursor: pointer; }
 .distributor-ratios span { text-align: center; font-weight: 800; }
-.distributor-green { color: #2f9e62; }.distributor-red { color: #d04d4d; }
+.distributor-green { color: #2f9e62; }.distributor-red { color: #d04d4d; }.distributor-blue { color: #2584d8; }
+.distributor-ratios > .is-hidden { display: none; }
 
 .map.is-panning {
   cursor: grabbing;

@@ -17,7 +17,7 @@
             </svg>
             <output class="resource-value">0</output>
           </div>
-          <div class="resource resource--red" data-value="0" aria-label="Красная энергия: 0">
+          <div class="resource resource--red" data-value="0" aria-label="Потребление энергии: 0" title="Потребление энергии">
             <svg class="resource-icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M13 2 4 14h7l-1 8 10-13h-7z" />
             </svg>
@@ -114,7 +114,7 @@
       <section class="device-menu machine-menu" id="machineMenu" aria-label="Меню бура">
         <strong>Бур</strong>
         <div class="device-menu-summary">
-          <span class="machine-level"></span><span class="machine-rate"></span>
+          <span class="machine-level"></span><span class="device-energy" aria-label="Потребление энергии"><span class="device-energy-value">0</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 10-13h-7z" /></svg></span><span class="machine-rate"></span>
           <button class="machine-toggle is-active" id="machineToggle" type="button" aria-label="Выключить бур" aria-pressed="true">
             <span class="machine-toggle-track" aria-hidden="true"></span>
           </button>
@@ -125,7 +125,7 @@
       <section class="device-menu crusher-menu" id="crusherMenu" aria-label="Меню дробилки">
         <strong>Дробилка</strong>
         <div class="device-menu-summary">
-          <span class="crusher-level"></span><span class="crusher-rate"></span>
+          <span class="crusher-level"></span><span class="device-energy" aria-label="Потребление энергии"><span class="device-energy-value">0</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 10-13h-7z" /></svg></span><span class="crusher-rate"></span>
           <button class="machine-upgrade device-menu-upgrade--compact" id="crusherUpgrade" type="button" aria-label="Улучшить дробилку"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg><span></span></button>
         </div>
         <div class="crusher-process device-production">
@@ -137,7 +137,7 @@
       <section class="device-menu crusher-menu" id="furnaceMenu" aria-label="Меню печи">
         <strong>Печь</strong>
         <div class="device-menu-summary">
-          <span class="furnace-level"></span><span class="furnace-rate"></span>
+          <span class="furnace-level"></span><span class="device-energy" aria-label="Потребление энергии"><span class="device-energy-value">0</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 10-13h-7z" /></svg></span><span class="furnace-rate"></span>
           <button class="machine-upgrade device-menu-upgrade--compact" id="furnaceUpgrade" type="button" aria-label="Улучшить печь"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg><span></span></button>
         </div>
         <div class="crusher-process device-production">
@@ -149,7 +149,7 @@
       <section class="device-menu crusher-menu" id="pressMenu" aria-label="Меню пресса">
         <strong>Пресс</strong>
         <div class="device-menu-summary">
-          <span class="press-level"></span><span class="press-rate"></span>
+          <span class="press-level"></span><span class="device-energy" aria-label="Потребление энергии"><span class="device-energy-value">0</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 10-13h-7z" /></svg></span><span class="press-rate"></span>
           <button class="machine-upgrade device-menu-upgrade--compact" id="pressUpgrade" type="button" aria-label="Улучшить пресс"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg><span></span></button>
         </div>
         <div class="crusher-process device-production"><div class="crusher-slot"><span class="press-input-name">Нет слитка</span><i class="press-input-icon"></i><b class="press-input-count">0</b></div><div class="device-production-arrow crusher-arrow press-arrow"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13m-5-5 5 5-5 5"/></svg><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13m-5-5 5 5-5 5"/></svg></span></div><div class="crusher-slot"><span class="press-output-name">—</span><i class="press-output-icon"></i><b class="press-output-count">0</b></div></div>
@@ -158,6 +158,7 @@
         <strong>Металлоформовщик</strong>
         <div class="device-menu-summary metal-former-summary">
           <span class="metal-former-level"></span>
+          <span class="device-energy" aria-label="Потребление энергии"><span class="device-energy-value">0</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 10-13h-7z" /></svg></span>
           <span class="metal-former-rate"></span>
           <button class="machine-upgrade device-menu-upgrade--compact" id="metalFormerUpgrade" type="button" aria-label="Улучшить металлоформовщик">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg><span></span>
@@ -177,6 +178,7 @@
         <strong class="recipe-machine-title"></strong>
         <div class="device-menu-summary recipe-machine-summary">
           <span class="recipe-machine-level"></span>
+          <span class="device-energy" aria-label="Потребление энергии"><span class="device-energy-value">0</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 10-13h-7z" /></svg></span>
           <span class="recipe-machine-rate"></span>
           <button class="machine-upgrade device-menu-upgrade--compact" id="recipeMachineUpgrade" type="button" aria-label="Улучшить механизм">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg><span></span>
@@ -192,6 +194,31 @@
         </div>
         <div class="metal-former-recipes" id="recipeMachineRecipes"></div>
       </section>
+      <section class="device-menu crusher-menu" id="generatorMenu" aria-label="Меню генератора">
+        <strong>Генератор</strong>
+        <div class="device-menu-summary">
+          <span class="generator-level"></span>
+          <span class="generator-output" aria-label="Текущая выработка энергии: 0"><span class="generator-output-value">0</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 10-13h-7z" /></svg></span>
+          <span class="generator-burn-time"></span>
+          <button class="machine-upgrade device-menu-upgrade--compact" id="generatorUpgrade" type="button" aria-label="Улучшить генератор">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg><span></span>
+          </button>
+        </div>
+        <div class="generator-storage">
+          <div class="crusher-slot generator-coal-slot">
+            <span>Уголь</span>
+            <i><img src="assets/resources/coal.png" alt=""></i>
+            <b class="generator-coal-count">0</b>
+          </div>
+          <div class="crusher-slot generator-burn-slot">
+            <span>Горение</span>
+            <i class="generator-flame" role="progressbar" aria-label="Остаток горения" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <svg class="generator-flame-base" viewBox="0 0 48 48" aria-hidden="true"><path d="M25 3c2 8-4 11-4 18 0 4 2 6 5 6 5 0 8-5 7-11 6 5 9 11 8 18-1 8-8 12-17 12S7 41 7 31c0-7 4-14 11-19-1 6 1 11 4 14-2-9 0-17 3-23Z" /></svg>
+              <span class="generator-flame-progress"><svg viewBox="0 0 48 48" aria-hidden="true"><path class="generator-flame-outer" d="M25 3c2 8-4 11-4 18 0 4 2 6 5 6 5 0 8-5 7-11 6 5 9 11 8 18-1 8-8 12-17 12S7 41 7 31c0-7 4-14 11-19-1 6 1 11 4 14-2-9 0-17 3-23Z" /><path class="generator-flame-inner" d="M24 25c1 5-3 7-3 11 0 3 2 5 5 5 4 0 7-3 7-7 2 2 3 5 2 8-2 3-6 4-10 4-7 0-11-4-11-10 0-4 2-8 6-11 0 4 1 7 3 9-1-4-1-7 1-9Z" /></svg></span>
+            </i>
+          </div>
+        </div>
+      </section>
       <section class="device-menu crusher-menu" id="filterMenu" aria-label="Меню фильтра">
         <strong>Фильтр</strong>
         <p class="crusher-available">До 6 выбранных ресурсов выходят по белой стрелке. Остальные — по чёрной.</p>
@@ -206,11 +233,12 @@
       </section>
       <section class="device-menu crusher-menu" id="distributorMenu" aria-label="Меню распределителя">
         <strong>Распределитель</strong>
-        <p class="crusher-available">Ресурсы по очереди уходят в зелёный и красный выходы.</p>
-        <div class="filter-modes" id="distributorModes"><button type="button" data-mode="1">А</button><button type="button" data-mode="2">Б</button></div>
+        <p class="crusher-available">Ресурсы по очереди уходят в цветные выходы.</p>
+        <div class="filter-modes" id="distributorModes"><button type="button" data-mode="1" title="Зелёный → · красный ↓">А</button><button type="button" data-mode="2" title="Зелёный ← · красный →">Б</button><button type="button" data-mode="3" title="Зелёный ← · красный → · синий ↓">В</button></div>
         <div class="distributor-ratios">
           <div><b class="distributor-green">Зелёный путь</b><button type="button" data-path="green" data-change="-1">−</button><span id="distributorGreenCount">1</span><button type="button" data-path="green" data-change="1">+</button></div>
           <div><b class="distributor-red">Красный путь</b><button type="button" data-path="red" data-change="-1">−</button><span id="distributorRedCount">1</span><button type="button" data-path="red" data-change="1">+</button></div>
+          <div class="is-hidden" id="distributorBlueRow"><b class="distributor-blue">Синий путь</b><button type="button" data-path="blue" data-change="-1">−</button><span id="distributorBlueCount">1</span><button type="button" data-path="blue" data-change="1">+</button></div>
         </div>
       </section>
       <div class="build-preview" id="buildPreview" aria-hidden="true"></div>

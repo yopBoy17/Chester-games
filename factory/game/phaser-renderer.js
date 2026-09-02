@@ -1,15 +1,6 @@
 import { FACTORY_CONFIG, isPerformancePreview } from './config.js';
 import { FACTORY_BALANCE } from './balance.js';
 
-const CONVEYOR_TEXTURE = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" fill="#151b27"/>
-  <rect y="4" width="100" height="8" fill="#f3a51b"/>
-  <rect y="88" width="100" height="8" fill="#f3a51b"/>
-  <rect y="14" width="100" height="72" fill="#303847"/>
-  <path d="M21 35 35 50 21 65M44 35 58 50 44 65M67 35 81 50 67 65" fill="none" stroke="#b8c2d1" stroke-width="7" stroke-linecap="square" stroke-linejoin="miter"/>
-  <path d="M0 1h100M0 99h100" stroke="#080d16" stroke-width="3"/>
-</svg>`)}`;
-
 function resourcePosition(resource, world, mapSize) {
   if (resource.renderPosition) {
     return {
@@ -38,7 +29,8 @@ export function createPhaserRenderer({ parent, world, products, resourceTypes, g
     ['product:filter-mode-3', 'assets/products/filters/filter-mode-3.svg'],
     ['product:distributor-mode-1', 'assets/products/distributors/distributor-mode-1.svg'],
     ['product:distributor-mode-2', 'assets/products/distributors/distributor-mode-2.svg'],
-    ['product:conveyor', CONVEYOR_TEXTURE],
+    ['product:distributor-mode-3', 'assets/products/distributors/distributor-mode-3.svg'],
+    ['product:conveyor', 'assets/products/conveyor.svg'],
   ]);
   const sprites = new Map();
   const resourceFrames = new Map();

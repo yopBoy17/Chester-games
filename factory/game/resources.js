@@ -80,6 +80,25 @@ export const bearingResources = smeltedResources.map((resource) => ({
   image: `assets/bearings/${resource.id.replace('-ingot', '')}-bearing.png`,
 }));
 
+const rodNames = {
+  iron: 'Железный стержень',
+  copper: 'Медный стержень',
+  tin: 'Оловянный стержень',
+  silver: 'Серебряный стержень',
+  gold: 'Золотой стержень',
+  tungsten: 'Вольфрамовый стержень',
+  platinum: 'Платиновый стержень',
+  diamond: 'Алмазный стержень',
+};
+
+export const rodResources = smeltedResources.map((resource) => ({
+  id: resource.id.replace('-ingot', '-rod'),
+  catalogId: resource.catalogId + 40,
+  name: rodNames[resource.id.replace('-ingot', '')],
+  color: resource.color,
+  image: `assets/rods/${resource.id.replace('-ingot', '')}-rod.png`,
+}));
+
 export function getResourceType(resourceId) {
-  return [...drillResources, ...crushedResources, ...smeltedResources, ...pressedResources, ...gearResources, ...bearingResources].find((resource) => resource.id === resourceId) ?? null;
+  return [...drillResources, ...crushedResources, ...smeltedResources, ...pressedResources, ...gearResources, ...bearingResources, ...rodResources].find((resource) => resource.id === resourceId) ?? null;
 }

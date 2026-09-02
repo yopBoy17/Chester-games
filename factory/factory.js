@@ -3,8 +3,11 @@ import { FACTORY_BALANCE } from './game/balance.js';
 import { cellNextTo, directionForRotation, oppositeSide, sideToward } from './game/conveyor.js';
 import { formatDrillRate, getDrillChances as calculateDrillChances, getDrillInterval as calculateDrillInterval, pickDrillResource as pickCalculatedDrillResource } from './game/machines/drill.js';
 import { formatProcessingRate, getCrusherResources as calculateCrusherResources, getFurnaceResources as calculateFurnaceResources, getProcessingInterval } from './game/machines/processing.js';
-import { bearingResources, crushedResources, drillResources, gearResources, getResourceType, pressedResources, smeltedResources } from './game/resources.js';
+import { bearingResources, crushedResources, drillResources, gearResources, getResourceType, pressedResources, rodResources, smeltedResources } from './game/resources.js';
 import { createPhaserRenderer } from './game/phaser-renderer.js';
+import { createInventoryController } from './game/inventory/inventory.js';
+import { createWarehouseOutput } from './game/inventory/warehouse-output.js';
+import { createEnergyController } from './game/energy/energy.js';
 
 const map = document.querySelector('.map');
 const gameLoader = document.querySelector('#gameLoader');
@@ -17,11 +20,6 @@ const cancelButton = document.querySelector('#cancelButton');
 const inventoryButton = document.querySelector('#inventoryButton');
 const shopPopover = document.querySelector('#shopPopover');
 const shopGrid = document.querySelector('.shop-grid');
-const inventoryPopover = document.querySelector('#inventoryPopover');
-const inventoryTitle = inventoryPopover.querySelector('.inventory-header strong');
-const inventoryGrid = document.querySelector('#inventoryGrid');
-const inventoryDetail = document.querySelector('#inventoryDetail');
-const inventoryTabs = document.querySelector('#inventoryTabs');
 const buildPreview = document.querySelector('#buildPreview');
 const placementMenu = document.querySelector('#placementMenu');
 const placementName = document.querySelector('.placement-name');
@@ -75,6 +73,15 @@ const recipeMachineRate = document.querySelector('.recipe-machine-rate');
 const recipeMachineRecipeButton = document.querySelector('#recipeMachineRecipeButton');
 const recipeMachineRecipes = document.querySelector('#recipeMachineRecipes');
 const recipeMachineUpgrade = document.querySelector('#recipeMachineUpgrade');
+const generatorMenu = document.querySelector('#generatorMenu');
+const generatorLevel = document.querySelector('.generator-level');
+const generatorOutput = document.querySelector('.generator-output');
+const generatorOutputValue = document.querySelector('.generator-output-value');
+const generatorBurnTime = document.querySelector('.generator-burn-time');
+const generatorCoalCount = document.querySelector('.generator-coal-count');
+const generatorFlame = document.querySelector('.generator-flame');
+const generatorFlameProgress = document.querySelector('.generator-flame-progress');
+const generatorUpgrade = document.querySelector('#generatorUpgrade');
 const filterMenu = document.querySelector('#filterMenu');
 const filterModes = document.querySelector('#filterModes');
 const filterItems = document.querySelector('#filterItems');
@@ -84,6 +91,8 @@ const distributorMenu = document.querySelector('#distributorMenu');
 const distributorModes = document.querySelector('#distributorModes');
 const distributorGreenCount = document.querySelector('#distributorGreenCount');
 const distributorRedCount = document.querySelector('#distributorRedCount');
+const distributorBlueCount = document.querySelector('#distributorBlueCount');
+const distributorBlueRow = document.querySelector('#distributorBlueRow');
 const confirmPlacement = document.querySelector('#confirmPlacement');
 const discardPlacement = document.querySelector('#discardPlacement');
 const BASE_CELL_SIZE = FACTORY_CONFIG.cellSize;
@@ -123,6 +132,7 @@ let selectedMetalFormer = null;
 let selectedMetalFormerRecipeType = null;
 let selectedRecipeMachine = null;
 let selectedRecipeMachineCategory = null;
+let selectedGenerator = null;
 let selectedFilter = null;
 let selectedFilterSlot = null;
 let filterPickerTab = 'all';
@@ -145,6 +155,7 @@ const PRESS_UPGRADE_COEFFICIENT = machines.pressUpgradeCoefficient;
 const METAL_FORMER_PROCESS_MS = machines.metalFormerProcessMs;
 const METAL_FORMER_UPGRADE_COEFFICIENT = machines.metalFormerUpgradeCoefficient;
 const MAX_METAL_FORMER_LEVEL = machines.maxLevel;
+const GENERATOR_UPGRADE_COEFFICIENT = machines.generatorUpgradeCoefficient;
 const RECIPE_MACHINE_DEFINITIONS = {
   former: {
     name: 'Формовщик',
@@ -171,24 +182,56 @@ const MAX_FURNACE_LEVEL = machines.maxLevel;
 const MAX_CONVEYOR_ITEMS = conveyors.maxItems;
 const CONVEYOR_TRAVEL_MS = conveyors.travelMs;
 const CONVEYOR_TURN_PAUSE_MS = conveyors.turnPauseMs;
-const WAREHOUSE_EMISSION_MS = 500;
-const inventoryItems = [
-  { id: 'trash', catalogId: 1, name: 'Мусор', color: '#6f7780', image: 'assets/resources/trash.png', sellPrice: sales.trash },
-];
-let inventory = { trash: 0 };
-let selectedInventoryItemId = null;
-let inventoryTab = 'all';
-let inventorySource = 'panel';
-let selectedInventoryWarehouse = null;
-const warehouseEmissionQueues = new Map();
 let saveSyncTimer = null;
 
-inventoryItems.push(
-  ...[...drillResources, ...crushedResources, ...smeltedResources, ...pressedResources, ...gearResources, ...bearingResources].map((resource) => ({
-    ...resource,
-    sellPrice: sales[resource.id],
-  })),
-);
+const energyController = createEnergyController({
+  greenResource: document.querySelector('.resource--green'),
+  redResource: document.querySelector('.resource--red'),
+  storageResource: document.querySelector('.resource--yellow'),
+  buildings,
+  formatAmount,
+  generatorBaseBurnMs: machines.generatorBaseBurnMs,
+  generatorBurnReductionMs: machines.generatorBurnReductionMs,
+});
+
+const inventoryController = createInventoryController({
+  button: inventoryButton,
+  popover: document.querySelector('#inventoryPopover'),
+  title: document.querySelector('#inventoryPopover .inventory-header strong'),
+  grid: document.querySelector('#inventoryGrid'),
+  detail: document.querySelector('#inventoryDetail'),
+  tabs: document.querySelector('#inventoryTabs'),
+  resourceGroups: {
+    ores: drillResources,
+    powders: crushedResources,
+    ingots: smeltedResources,
+    components: [...pressedResources, ...gearResources, ...bearingResources, ...rodResources],
+  },
+  sales,
+  formatAmount,
+  getMoney,
+  setMoney,
+  saveGameState,
+  closeShop: () => setShopOpen(false),
+  enqueueWarehouseEmission: (...args) => warehouseOutput.enqueue(...args),
+  isWarehouseAvailable: (warehouse) => buildings.get(warehouse.dataset.cellKey) === warehouse,
+});
+const inventoryItems = inventoryController.items;
+const warehouseOutput = createWarehouseOutput({
+  isWarehouseAvailable: (warehouse) => buildings.get(warehouse.dataset.cellKey) === warehouse,
+  getInventoryCount: inventoryController.getCount,
+  removeInventoryItem: (itemId) => inventoryController.add(itemId, -1),
+  getInventoryItem: (itemId) => inventoryItems.find((item) => item.id === itemId),
+  isCellOnMap,
+  getConveyorAt: getConfirmedConveyorAt,
+  isConveyorFull,
+  emitResource,
+  saveGameState,
+});
+
+const renderInventory = () => inventoryController.render();
+const addToInventory = (itemId, amount = 1) => inventoryController.add(itemId, amount);
+const setInventoryOpen = (open, source = 'panel', warehouse = null) => inventoryController.setOpen(open, source, warehouse);
 
 const cellPreview = document.createElement('div');
 cellPreview.className = 'cell-preview';
@@ -197,7 +240,8 @@ world.append(cellPreview);
 const products = [
   { id: 'drill', name: 'Бур', price: productPrices.drill, color: '#7194ae', image: 'assets/products/drill.png', footprint: { width: 1, height: 1 }, defaultRotation: 180, description: 'Добывает базовую руду.' },
   { id: 'conveyor', name: 'Конвейер', price: productPrices.conveyor, color: '#77838d', image: 'assets/products/conveyor-straight.png', description: 'Перевозит предметы между машинами.' },
-  { id: 'distributor', name: 'Распределитель', price: productPrices.distributor, color: '#87929a', image: 'assets/products/distributors/distributor-mode-1.svg', description: 'Делит поток между двумя выходами.' },
+  { id: 'generator', name: 'Генератор', price: productPrices.generator, color: '#d2a244', image: 'assets/products/generator.png', description: 'Создаёт энергию для фабрики.' },
+  { id: 'distributor', name: 'Распределитель', price: productPrices.distributor, color: '#87929a', image: 'assets/products/distributors/distributor-mode-1.svg', description: 'Делит поток между цветными выходами.' },
   { id: 'filter', name: 'Фильтр', price: productPrices.filter, color: '#f4f5f6', image: 'assets/products/filters/filter-mode-1.svg', description: 'Разделяет ресурсы на два выхода.' },
   { id: 'warehouse', name: 'Склад', price: productPrices.warehouse, color: '#a88054', image: 'assets/products/warehouse.png', description: 'Хранит готовую продукцию.' },
   { id: 'furnace', name: 'Печь', price: productPrices.furnace, color: '#e18550', image: 'assets/products/furnace.png', description: 'Переплавляет руду в слитки.' },
@@ -208,7 +252,6 @@ const products = [
   { id: 'former', name: 'Формовщик', price: productPrices.former, color: '#60758a', image: 'assets/products/former.png', description: 'Формует детали по выбранному рецепту.' },
   { id: 'component-assembler', name: 'Сборщик компонентов', price: productPrices.componentAssembler, color: '#596d83', image: 'assets/products/component-assembler.png', description: 'Собирает компоненты по выбранному рецепту.' },
   // { id: 'lab', name: 'Лаборатория', price: productPrices.lab, color: '#62a99a', description: 'Открывает новые технологии.' },
-  // { id: 'generator', name: 'Генератор', price: productPrices.generator, color: '#d2a244', description: 'Создаёт энергию для фабрики.' },
   // { id: 'terminal', name: 'Терминал', price: productPrices.terminal, color: '#596f9f', description: 'Автоматизирует работу цеха.' },
 ];
 
@@ -216,7 +259,7 @@ const phaserRenderer = createPhaserRenderer({
   parent: phaserStage,
   world,
   products,
-  resourceTypes: [...inventoryItems, ...drillResources, ...crushedResources, ...smeltedResources, ...pressedResources, ...gearResources, ...bearingResources],
+  resourceTypes: [...inventoryItems, ...drillResources, ...crushedResources, ...smeltedResources, ...pressedResources, ...gearResources, ...bearingResources, ...rodResources],
   getBuildings: () => new Map([...buildings, ...draftBuildings]),
   getMovingResources: () => movingResources,
   getCamera: () => camera,
@@ -242,9 +285,14 @@ function renderCompactUpgrade(button, level, maxLevel, cost, deviceName) {
 }
 
 function renderResources() {
-  document.querySelectorAll('.resource').forEach((resource) => {
-    const value = Number(resource.dataset.value);
+  energyController.render();
+  document.querySelectorAll('.resource:not(.resource--green):not(.resource--red):not(.resource--yellow)').forEach((resource) => {
     const max = resource.dataset.max;
+    const rawValue = Number(resource.dataset.value);
+    const value = max
+      ? Math.min(Number(max), Math.max(0, Number.isFinite(rawValue) ? rawValue : 0))
+      : rawValue;
+    if (max) resource.dataset.value = String(value);
     const label = max ? `${formatAmount(value)}/${formatAmount(Number(max))}` : formatAmount(value);
     resource.querySelector('.resource-value').textContent = label;
   });
@@ -275,6 +323,7 @@ function getUpgradeCost(building, coefficient) {
 }
 
 function saveGameState({ logServerSave = false } = {}) {
+  renderResources();
   const serializeBuilding = (building, isDraft) => {
     const [x, y] = building.dataset.cellKey.split(':').map(Number);
     return {
@@ -299,11 +348,16 @@ function saveGameState({ logServerSave = false } = {}) {
       metalFormerRecipeId: building.dataset.metalFormerRecipeId ?? null,
       metalFormerInputCount: Number(building.dataset.metalFormerInputCount ?? 0),
       metalFormerNextProcessAt: Number(building.dataset.metalFormerNextProcessAt ?? 0),
+      generatorCoalCount: Number(building.dataset.generatorCoalCount ?? 0),
+      generatorBurnEndsAt: Number(building.dataset.generatorBurnEndsAt ?? 0),
+      generatorIsActive: building.dataset.generatorIsActive !== 'false',
+      generatorPausedBurnMs: Number(building.dataset.generatorPausedBurnMs ?? 0),
       filterMode: Number(building.dataset.filterMode ?? 1),
       filterItemIds: building.dataset.filterItemIds ?? '',
       distributorMode: Number(building.dataset.distributorMode ?? 1),
       distributorGreenCount: Number(building.dataset.distributorGreenCount ?? 1),
       distributorRedCount: Number(building.dataset.distributorRedCount ?? 1),
+      distributorBlueCount: Number(building.dataset.distributorBlueCount ?? 1),
       distributorPhase: Number(building.dataset.distributorPhase ?? 0),
       isDraft,
     };
@@ -321,7 +375,7 @@ function saveGameState({ logServerSave = false } = {}) {
     conveyorItems: [...movingResources]
       .filter((item) => !item.isBeingRemoved && item.cell && getConfirmedConveyorAt(item.cell))
       .map((item) => ({ resourceId: item.resourceId, x: item.cell.x, y: item.cell.y })),
-    inventory,
+    inventory: inventoryController.getState(),
     selectedProductId: selectedProduct?.id ?? null,
   };
   syncGameState(state, logServerSave);
@@ -363,133 +417,6 @@ function renderShop() {
   `).join('');
 }
 
-function renderInventory() {
-  const tabItems = inventoryTab === 'ores' ? drillResources
-    : inventoryTab === 'powders' ? crushedResources
-    : inventoryTab === 'ingots' ? smeltedResources
-      : inventoryTab === 'components' ? [...pressedResources, ...gearResources, ...bearingResources] : inventoryItems;
-  const filledSlots = tabItems
-    .filter((item) => Number(inventory[item.id] ?? 0) > 0)
-    .map((item) => ({ ...item, count: Number(inventory[item.id]) }));
-  const slots = [...filledSlots, ...Array.from({ length: 100 - filledSlots.length }, () => null)];
-  const currentSlotIds = Array.from(inventoryGrid.children, (slot) => slot.dataset.itemId ?? '');
-  const nextSlotIds = slots.map((item) => item?.id ?? '');
-
-  if (currentSlotIds.length === nextSlotIds.length
-    && currentSlotIds.every((itemId, index) => itemId === nextSlotIds[index])) {
-    slots.forEach((item, index) => {
-      if (item) inventoryGrid.children[index].querySelector('.inventory-count').textContent = item.count;
-    });
-    renderInventoryDetail();
-    return;
-  }
-
-  inventoryGrid.innerHTML = slots.map((item) => item
-    ? `<button class="inventory-slot" type="button" data-item-id="${item.id}" title="${item.name}">
-        <i class="inventory-item-icon" style="background:${item.image ? 'transparent' : item.color}" aria-hidden="true">${item.image ? `<img src="${item.image}" alt="">` : ''}</i>
-        <span class="inventory-count">${item.count}</span>
-      </button>`
-    : '<div class="inventory-slot is-empty" aria-label="Пустая ячейка"><span class="inventory-count"></span></div>')
-    .join('');
-  renderInventoryDetail();
-}
-
-inventoryTabs.addEventListener('click', (event) => {
-  const button = event.target.closest('button[data-tab]');
-  if (!button) return;
-  inventoryTab = button.dataset.tab;
-  selectedInventoryItemId = null;
-  inventoryTabs.querySelectorAll('button').forEach((item) => item.classList.toggle('is-active', item === button));
-  renderInventory();
-});
-
-function inventoryQuantityFormMarkup(itemId, actionLabel, modifier = '') {
-  const actionContent = modifier === 'inventory-sale'
-    ? '<span>Продать</span><span data-sale-total>0 $</span>'
-    : actionLabel;
-  return `<form class="inventory-release${modifier ? ` ${modifier}` : ''}" data-item-id="${itemId}" data-release-value="">
-    <output class="inventory-release-display" data-release-display>0</output>
-    <div class="inventory-release-keypad">
-      <button type="button" data-release-digit="1">1</button><button type="button" data-release-digit="2">2</button><button type="button" data-release-digit="3">3</button>
-      <button type="button" data-release-digit="4">4</button><button type="button" data-release-digit="5">5</button><button type="button" data-release-digit="6">6</button>
-      <button type="button" data-release-digit="7">7</button><button type="button" data-release-digit="8">8</button><button type="button" data-release-digit="9">9</button>
-      <button class="inventory-release-clear" type="button" data-release-backspace aria-label="Удалить последнюю цифру">C</button><button type="button" data-release-digit="0">0</button><button class="inventory-release-all" type="button" data-release-all>all</button>
-      <button class="inventory-release-confirm" type="submit">${actionContent}</button>
-    </div>
-  </form>`;
-}
-
-function setInventoryQuantityFormValue(form, value) {
-  const nextValue = String(value);
-  form.dataset.releaseValue = nextValue;
-  form.querySelector('[data-release-display]').textContent = nextValue || '0';
-  const saleTotal = form.querySelector('[data-sale-total]');
-  const item = inventoryItems.find((entry) => entry.id === form.dataset.itemId);
-  if (saleTotal && item) saleTotal.textContent = `${formatAmount(Number(nextValue || 0) * item.sellPrice)} $`;
-}
-
-function renderInventoryDetail() {
-  const item = inventoryItems.find((entry) => entry.id === selectedInventoryItemId);
-  const count = item ? Number(inventory[item.id] ?? 0) : 0;
-  if (!item || count <= 0) {
-    selectedInventoryItemId = null;
-    inventoryDetail.classList.remove('is-visible');
-    inventoryDetail.innerHTML = '';
-    return;
-  }
-  const existingReleaseForm = inventoryDetail.querySelector(`.inventory-release[data-item-id="${item.id}"]`);
-  if (existingReleaseForm) {
-    inventoryDetail.querySelector('.inventory-detail-count').textContent = count;
-    if (Number(existingReleaseForm.dataset.releaseValue) > count) {
-      setInventoryQuantityFormValue(existingReleaseForm, count);
-    }
-    return;
-  }
-  inventoryDetail.innerHTML = `
-    <button class="inventory-detail-close" type="button" data-inventory-detail-close aria-label="Закрыть детали предмета">×</button>
-    <strong>${item.name}</strong>
-    <div class="inventory-detail-item-card${item.sellPrice > 0 ? ' has-price' : ''}">
-      <i class="inventory-detail-preview" style="background:${item.image ? 'transparent' : item.color}" aria-hidden="true">${item.image ? `<img src="${item.image}" alt="">` : ''}</i>
-      <span class="inventory-detail-count">${count}</span>
-      ${item.sellPrice > 0 ? `<span class="inventory-detail-unit-price">${formatAmount(item.sellPrice)} $ за шт.</span>` : ''}
-    </div>
-    ${inventorySource === 'warehouse'
-      ? inventoryQuantityFormMarkup(item.id, 'Выгрузить')
-      : item.sellPrice > 0
-      ? inventoryQuantityFormMarkup(item.id, 'Продать', 'inventory-sale')
-      : '<span>Материал на складе</span>'}
-  `;
-  inventoryDetail.classList.add('is-visible');
-}
-
-function addToInventory(itemId, amount = 1) {
-  inventory[itemId] = Math.max(0, Number(inventory[itemId] ?? 0) + amount);
-  renderInventory();
-}
-
-function setInventoryOpen(open, source = 'panel', warehouse = null) {
-  const wasOpen = inventoryPopover.classList.contains('is-open');
-  const previousSource = inventorySource;
-  const previousWarehouse = selectedInventoryWarehouse;
-  if (open) {
-    inventorySource = source;
-    selectedInventoryWarehouse = source === 'warehouse' ? warehouse : null;
-  } else {
-    inventorySource = 'panel';
-    selectedInventoryWarehouse = null;
-  }
-  inventoryPopover.classList.toggle('is-open', open);
-  inventoryPopover.dataset.source = inventorySource;
-  inventoryPopover.setAttribute('aria-label', inventorySource === 'warehouse' ? 'Инвентарь склада' : 'Инвентарь');
-  inventoryTitle.textContent = inventorySource === 'warehouse' ? 'Склад' : 'Инвентарь';
-  inventoryButton.classList.toggle('is-active', open && inventorySource === 'panel');
-  inventoryButton.setAttribute('aria-expanded', String(open));
-  if (wasOpen !== open || previousSource !== inventorySource || previousWarehouse !== selectedInventoryWarehouse) {
-    selectedInventoryItemId = null;
-    renderInventory();
-  }
-}
-
 function setShopOpen(isOpen) {
   shopPopover.classList.toggle('is-open', isOpen);
   shopButton.setAttribute('aria-expanded', String(isOpen));
@@ -519,6 +446,21 @@ function discardDraftBuildings() {
   refreshBuildingConnections();
   if (refund) setMoney(getMoney() + refund);
   finishPlacement();
+}
+
+function removeDraftBuilding(building) {
+  const key = building.dataset.cellKey;
+  if (!key || draftBuildings.get(key) !== building) return;
+  draftBuildings.delete(key);
+  building.remove();
+  setMoney(getMoney() + Number(building.dataset.cost ?? 0));
+  if (lastPlacedConveyorKey === key) {
+    lastPlacedConveyorKey = [...draftBuildings]
+      .reverse()
+      .find(([, draft]) => draft.dataset.productId === 'conveyor')?.[0] ?? null;
+  }
+  refreshConveyors();
+  saveGameState();
 }
 
 function hidePlacementPreview() {
@@ -664,7 +606,7 @@ function createBuilding(product, cell, options = {}) {
   const footprint = getFootprint(product);
   const building = document.createElement('div');
   building.className = `building building--${product.id}${isDraft ? ' building--draft' : ''}`;
-  if (product.id !== 'conveyor' && product.id !== 'filter' && product.id !== 'distributor') {
+  if (product.id !== 'conveyor' && product.id !== 'filter' && product.id !== 'distributor' && product.id !== 'generator') {
     building.classList.add('building--has-active-side');
     building.dataset.activeSide = activeSide;
     building.dataset.activeState = 'ready';
@@ -685,10 +627,15 @@ function createBuilding(product, cell, options = {}) {
     building.dataset.distributorMode = '1';
     building.dataset.distributorGreenCount = '1';
     building.dataset.distributorRedCount = '1';
+    building.dataset.distributorBlueCount = '1';
     building.dataset.distributorPhase = '0';
   }
   if (product.id === 'metal-former') {
     building.dataset.metalFormerInputCount = '0';
+  }
+  if (product.id === 'generator') {
+    building.dataset.generatorCoalCount = '0';
+    building.dataset.generatorIsActive = 'true';
   }
   building.style.left = `${(cell.x / MAP_SIZE) * 100}%`;
   building.style.top = `${(cell.y / MAP_SIZE) * 100}%`;
@@ -713,8 +660,7 @@ function createBuilding(product, cell, options = {}) {
 }
 
 function clearGameState() {
-  warehouseEmissionQueues.forEach((state) => window.clearTimeout(state.timerId));
-  warehouseEmissionQueues.clear();
+  warehouseOutput.clearAll();
   movingResources.forEach((resource) => resource.element.remove());
   movingResources.clear();
   buildings.forEach((building) => building.remove());
@@ -730,9 +676,7 @@ function restoreGameState(savedState = null, replaceCurrent = false) {
   if (replaceCurrent) clearGameState();
 
   if (state.inventory && typeof state.inventory === 'object') {
-    inventory = Object.fromEntries(Object.entries(state.inventory)
-      .map(([itemId, count]) => [itemId, Math.max(0, Number(count) || 0)]));
-    inventory.trash ??= 0;
+    inventoryController.replaceState(state.inventory);
   }
 
   state.resources?.forEach((savedResource, index) => {
@@ -780,9 +724,26 @@ function restoreGameState(savedState = null, replaceCurrent = false) {
       if (savedBuilding.metalFormerInputCount) building.dataset.metalFormerInputCount = String(savedBuilding.metalFormerInputCount);
       if (savedBuilding.metalFormerNextProcessAt) building.dataset.metalFormerNextProcessAt = String(savedBuilding.metalFormerNextProcessAt);
     }
+    if (product.id === 'generator') {
+      building.dataset.generatorCoalCount = String(Math.max(0, Number(savedBuilding.generatorCoalCount ?? 0)));
+      building.dataset.generatorIsActive = String(savedBuilding.generatorIsActive !== false);
+      if (Number(savedBuilding.generatorBurnEndsAt) > 0) {
+        building.dataset.generatorBurnEndsAt = String(savedBuilding.generatorBurnEndsAt);
+      }
+      if (Number(savedBuilding.generatorPausedBurnMs) > 0) {
+        building.dataset.generatorPausedBurnMs = String(savedBuilding.generatorPausedBurnMs);
+      }
+    }
     if (product.id === 'filter') {
       building.dataset.filterMode = String(savedBuilding.filterMode ?? 1);
       building.dataset.filterItemIds = savedBuilding.filterItemIds ?? '';
+    }
+    if (product.id === 'distributor') {
+      building.dataset.distributorMode = String(savedBuilding.distributorMode ?? 1);
+      building.dataset.distributorGreenCount = String(Math.max(1, Number(savedBuilding.distributorGreenCount ?? 1)));
+      building.dataset.distributorRedCount = String(Math.max(1, Number(savedBuilding.distributorRedCount ?? 1)));
+      building.dataset.distributorBlueCount = String(Math.max(1, Number(savedBuilding.distributorBlueCount ?? 1)));
+      building.dataset.distributorPhase = String(Math.max(0, Number(savedBuilding.distributorPhase ?? 0)));
     }
   });
 
@@ -914,63 +875,6 @@ function emitResource(resourceType, source, side) {
   placeResourceImmediately(resource, target);
   resource.lastDirection = side;
   advanceResource(resource, target);
-}
-
-function clearWarehouseEmissionQueue(warehouse) {
-  const state = warehouseEmissionQueues.get(warehouse);
-  if (state?.timerId) window.clearTimeout(state.timerId);
-  warehouseEmissionQueues.delete(warehouse);
-}
-
-function scheduleWarehouseEmission(warehouse) {
-  const state = warehouseEmissionQueues.get(warehouse);
-  if (!state || state.timerId) return;
-  state.timerId = window.setTimeout(() => {
-    state.timerId = null;
-    processWarehouseEmission(warehouse);
-  }, WAREHOUSE_EMISSION_MS);
-}
-
-function processWarehouseEmission(warehouse) {
-  const state = warehouseEmissionQueues.get(warehouse);
-  if (!state || buildings.get(warehouse.dataset.cellKey) !== warehouse) {
-    clearWarehouseEmissionQueue(warehouse);
-    return;
-  }
-
-  while (state.items.length && (state.items[0].remaining <= 0 || Number(inventory[state.items[0].itemId] ?? 0) <= 0)) {
-    state.items.shift();
-  }
-  const task = state.items[0];
-  if (!task) {
-    clearWarehouseEmissionQueue(warehouse);
-    return;
-  }
-
-  const resourceType = inventoryItems.find((item) => item.id === task.itemId);
-  const [x, y] = warehouse.dataset.cellKey.split(':').map(Number);
-  const source = { x, y };
-  const side = warehouse.dataset.activeSide ?? 'bottom';
-  const target = cellNextTo(source, side);
-  const conveyor = isCellOnMap(target) ? getConfirmedConveyorAt(target) : null;
-  if (resourceType && conveyor && !isConveyorFull(target, null)) {
-    inventory[task.itemId] = Number(inventory[task.itemId] ?? 0) - 1;
-    task.remaining -= 1;
-    emitResource(resourceType, source, side);
-    renderInventory();
-    saveGameState();
-  }
-  scheduleWarehouseEmission(warehouse);
-}
-
-function enqueueWarehouseEmission(warehouse, itemId, quantity) {
-  let state = warehouseEmissionQueues.get(warehouse);
-  if (!state) {
-    state = { items: [], timerId: null };
-    warehouseEmissionQueues.set(warehouse, state);
-  }
-  state.items.push({ itemId, remaining: quantity });
-  scheduleWarehouseEmission(warehouse);
 }
 
 function showTrashEffect(resource) {
@@ -1130,13 +1034,15 @@ function acceptPressResource(resource, press, fromCell) {
 }
 
 function getMetalFormerRecipe(metalFormer) {
-  const output = [...gearResources, ...bearingResources].find((item) => item.id === metalFormer.dataset.metalFormerRecipeId);
+  const output = [...gearResources, ...bearingResources, ...rodResources].find((item) => item.id === metalFormer.dataset.metalFormerRecipeId);
   if (!output) return null;
   const level = Number(metalFormer.dataset.level ?? 1);
-  const recipeResources = output.id.endsWith('-bearing') ? bearingResources : gearResources;
+  const recipeResources = output.id.endsWith('-bearing')
+    ? bearingResources
+    : output.id.endsWith('-rod') ? rodResources : gearResources;
   if (recipeResources.indexOf(output) >= getAvailableMetalFormerMaterialCount(level)) return null;
   const input = smeltedResources[recipeResources.indexOf(output)];
-  return input ? { input, output } : null;
+  return input ? { input, output, outputCount: output.id.endsWith('-rod') ? 2 : 1 } : null;
 }
 
 function getAvailableMetalFormerMaterialCount(level) {
@@ -1161,6 +1067,23 @@ function acceptMetalFormerResource(resource, metalFormer, fromCell) {
   resource.element.remove();
   movingResources.delete(resource);
   if (selectedMetalFormer === metalFormer) openMetalFormerMenu(metalFormer);
+  saveGameState();
+}
+
+function acceptGeneratorResource(resource, generator) {
+  if (resource.resourceId !== 'coal') {
+    removeResource(resource);
+    return;
+  }
+  if (resource.animationFrame) window.cancelAnimationFrame(resource.animationFrame);
+  generator.dataset.generatorCoalCount = String(Number(generator.dataset.generatorCoalCount ?? 0) + 1);
+  if (generator.dataset.generatorIsActive !== 'false'
+    && Number(generator.dataset.generatorBurnEndsAt ?? 0) <= Date.now()) {
+    generator.dataset.generatorBurnEndsAt = String(Date.now() + energyController.getGeneratorBurnDuration(generator.dataset.level));
+  }
+  resource.element.remove();
+  movingResources.delete(resource);
+  if (selectedGenerator === generator) renderGeneratorMenu(generator);
   saveGameState();
 }
 
@@ -1211,14 +1134,18 @@ function acceptFilterResource(resource, filter) {
 
 function acceptDistributorResource(resource, distributor) {
   const mode = Number(distributor.dataset.distributorMode ?? 1);
-  const base = mode === 2 ? { green: 'left', red: 'right' } : { green: 'right', red: 'bottom' };
+  const base = mode === 3
+    ? { green: 'left', red: 'right', blue: 'bottom' }
+    : mode === 2 ? { green: 'left', red: 'right' } : { green: 'right', red: 'bottom' };
   const rotation = Number(distributor.dataset.rotation ?? 0);
-  const directions = { green: rotateSide(base.green, rotation), red: rotateSide(base.red, rotation) };
+  const directions = Object.fromEntries(Object.entries(base).map(([path, side]) => [path, rotateSide(side, rotation)]));
   const greenCount = Math.max(1, Number(distributor.dataset.distributorGreenCount ?? 1));
   const redCount = Math.max(1, Number(distributor.dataset.distributorRedCount ?? 1));
-  const phase = Number(distributor.dataset.distributorPhase ?? 0) % (greenCount + redCount);
-  const path = phase < greenCount ? 'green' : 'red';
-  distributor.dataset.distributorPhase = String((phase + 1) % (greenCount + redCount));
+  const blueCount = mode === 3 ? Math.max(1, Number(distributor.dataset.distributorBlueCount ?? 1)) : 0;
+  const cycleLength = greenCount + redCount + blueCount;
+  const phase = Number(distributor.dataset.distributorPhase ?? 0) % cycleLength;
+  const path = phase < greenCount ? 'green' : phase < greenCount + redCount ? 'red' : 'blue';
+  distributor.dataset.distributorPhase = String((phase + 1) % cycleLength);
   const [x, y] = distributor.dataset.cellKey.split(':').map(Number);
   const resourceType = getResourceType(resource.resourceId);
   if (resource.animationFrame) window.cancelAnimationFrame(resource.animationFrame);
@@ -1261,6 +1188,10 @@ function arriveAtCell(resource, cell) {
   }
   if (crusher?.classList.contains('building--metal-former')) {
     acceptMetalFormerResource(resource, crusher, resource.cell);
+    return;
+  }
+  if (crusher?.classList.contains('building--generator')) {
+    acceptGeneratorResource(resource, crusher);
     return;
   }
   if (crusher?.classList.contains('building--former') || crusher?.classList.contains('building--component-assembler')) {
@@ -1313,6 +1244,11 @@ function runCrushers() {
       const count = Number(crusher.dataset.crusherInputCount ?? 0);
       const inputId = crusher.dataset.crusherInputId;
       if (!inputId || count <= 0) return;
+      if (!energyController.canPower(crusher)) {
+        delete crusher.dataset.crusherNextProcessAt;
+        if (selectedCrusher === crusher) renderCrusherMenu(crusher);
+        return;
+      }
       const interval = getCrusherInterval(Number(crusher.dataset.level ?? 1));
       const nextProcessAt = Number(crusher.dataset.crusherNextProcessAt);
       if (!nextProcessAt) {
@@ -1346,6 +1282,11 @@ function runFurnaces() {
       const count = Number(furnace.dataset.furnaceInputCount ?? 0);
       const inputId = furnace.dataset.furnaceInputId;
       if (!inputId || count <= 0) return;
+      if (!energyController.canPower(furnace)) {
+        delete furnace.dataset.furnaceNextProcessAt;
+        if (selectedFurnace === furnace) renderFurnaceMenu(furnace);
+        return;
+      }
       const interval = getFurnaceInterval(Number(furnace.dataset.level ?? 1));
       const nextProcessAt = Number(furnace.dataset.furnaceNextProcessAt);
       if (!nextProcessAt) {
@@ -1380,6 +1321,11 @@ function runPresses() {
     const count = Number(press.dataset.pressInputCount ?? 0);
     const inputId = press.dataset.pressInputId;
     if (!inputId || count <= 0) return;
+    if (!energyController.canPower(press)) {
+      delete press.dataset.pressNextProcessAt;
+      if (selectedPress === press) openPressMenu(press);
+      return;
+    }
     const interval = getFurnaceInterval(Number(press.dataset.level ?? 1));
     const next = Number(press.dataset.pressNextProcessAt ?? 0);
     if (!next) { press.dataset.pressNextProcessAt = String(now + interval); return; }
@@ -1403,6 +1349,11 @@ function runMetalFormers() {
     const recipe = getMetalFormerRecipe(metalFormer);
     const count = Number(metalFormer.dataset.metalFormerInputCount ?? 0);
     if (!recipe || count <= 0) return;
+    if (!energyController.canPower(metalFormer)) {
+      delete metalFormer.dataset.metalFormerNextProcessAt;
+      if (selectedMetalFormer === metalFormer) openMetalFormerMenu(metalFormer);
+      return;
+    }
     const next = Number(metalFormer.dataset.metalFormerNextProcessAt ?? 0);
     if (!next) {
       metalFormer.dataset.metalFormerNextProcessAt = String(now + METAL_FORMER_PROCESS_MS);
@@ -1416,10 +1367,46 @@ function runMetalFormers() {
     metalFormer.dataset.metalFormerInputCount = String(count - 1);
     delete metalFormer.dataset.metalFormerNextProcessAt;
     const [x, y] = metalFormer.dataset.cellKey.split(':').map(Number);
-    emitResource(recipe.output, { x, y }, metalFormer.dataset.activeSide ?? 'bottom');
+    for (let index = 0; index < recipe.outputCount; index += 1) {
+      emitResource(recipe.output, { x, y }, metalFormer.dataset.activeSide ?? 'bottom');
+    }
     if (selectedMetalFormer === metalFormer) openMetalFormerMenu(metalFormer);
     saveGameState();
   });
+}
+
+function runGenerators() {
+  const now = Date.now();
+  let stateChanged = energyController.balanceGenerators();
+  [...buildings.values()]
+    .filter((building) => building.classList.contains('building--generator'))
+    .forEach((generator) => {
+      if (generator.dataset.generatorIsActive === 'false') {
+        if (selectedGenerator === generator) renderGeneratorMenu(generator);
+        return;
+      }
+      let coalCount = Number(generator.dataset.generatorCoalCount ?? 0);
+      const burnEndsAt = Number(generator.dataset.generatorBurnEndsAt ?? 0);
+      if (burnEndsAt > now) {
+        if (selectedGenerator === generator) renderGeneratorMenu(generator);
+        return;
+      }
+
+      if (burnEndsAt) {
+        coalCount = Math.max(0, coalCount - 1);
+        generator.dataset.generatorCoalCount = String(coalCount);
+        delete generator.dataset.generatorBurnEndsAt;
+        stateChanged = true;
+      }
+      if (coalCount > 0) {
+        generator.dataset.generatorBurnEndsAt = String(now + energyController.getGeneratorBurnDuration(generator.dataset.level));
+        stateChanged = true;
+      }
+      if (selectedGenerator === generator) renderGeneratorMenu(generator);
+    });
+
+  if (stateChanged) saveGameState();
+  else renderResources();
 }
 
 function runDrills() {
@@ -1428,6 +1415,10 @@ function runDrills() {
     .filter((building) => building.classList.contains('building--drill'))
     .forEach((drill) => {
       if (drill.dataset.isEnabled === 'false') {
+        delete drill.dataset.nextProductionAt;
+        return;
+      }
+      if (!energyController.canPower(drill)) {
         delete drill.dataset.nextProductionAt;
         return;
       }
@@ -1459,6 +1450,7 @@ function openDrillMenu(drill) {
   machineToggle.classList.toggle('is-active', isEnabled);
   machineToggle.setAttribute('aria-pressed', String(isEnabled));
   machineToggle.setAttribute('aria-label', isEnabled ? 'Выключить бур' : 'Включить бур');
+  energyController.renderDevice(machineMenu, drill);
   machineDropList.innerHTML = getDrillChances(level).map((resource) => `
     <div class="machine-drop">
       <i class="resource-swatch" style="background:${resource.color}" aria-hidden="true">${resource.image ? `<img src="${resource.image}" alt="">` : ''}</i>
@@ -1496,6 +1488,7 @@ function renderCrusherMenu(crusher) {
   crusherOutputName.textContent = output?.name ?? '—';
   crusherOutputCount.textContent = output ? String(count * 2) : '0';
   crusherArrowProgress.style.width = `${progress * 100}%`;
+  energyController.renderDevice(crusherMenu, crusher);
   renderCompactUpgrade(crusherUpgrade, level, MAX_CRUSHER_LEVEL, upgradeCost, 'дробилку');
 }
 
@@ -1549,9 +1542,12 @@ function closeFilterMenu() {
 }
 
 function renderDistributorMenu(distributor) {
-  distributorModes.querySelectorAll('button').forEach((button) => button.classList.toggle('is-selected', button.dataset.mode === (distributor.dataset.distributorMode ?? '1')));
+  const mode = distributor.dataset.distributorMode ?? '1';
+  distributorModes.querySelectorAll('button').forEach((button) => button.classList.toggle('is-selected', button.dataset.mode === mode));
   distributorGreenCount.textContent = distributor.dataset.distributorGreenCount ?? '1';
   distributorRedCount.textContent = distributor.dataset.distributorRedCount ?? '1';
+  distributorBlueCount.textContent = distributor.dataset.distributorBlueCount ?? '1';
+  distributorBlueRow.classList.toggle('is-hidden', mode !== '3');
 }
 
 function openDistributorMenu(distributor) {
@@ -1563,12 +1559,20 @@ function closeDistributorMenu() { distributorMenu.classList.remove('is-visible')
 
 distributorModes.addEventListener('click', (event) => {
   const button = event.target.closest('button[data-mode]'); if (!button || !selectedDistributor) return;
-  selectedDistributor.dataset.distributorMode = button.dataset.mode; renderDistributorMenu(selectedDistributor); saveGameState();
+  selectedDistributor.dataset.distributorMode = button.dataset.mode;
+  selectedDistributor.dataset.distributorPhase = '0';
+  renderDistributorMenu(selectedDistributor);
+  saveGameState();
 });
 
 distributorMenu.addEventListener('click', (event) => {
   const button = event.target.closest('button[data-path]'); if (!button || !selectedDistributor) return;
-  const key = button.dataset.path === 'green' ? 'distributorGreenCount' : 'distributorRedCount';
+  const key = {
+    green: 'distributorGreenCount',
+    red: 'distributorRedCount',
+    blue: 'distributorBlueCount',
+  }[button.dataset.path];
+  if (!key) return;
   selectedDistributor.dataset[key] = String(Math.max(1, Number(selectedDistributor.dataset[key] ?? 1) + Number(button.dataset.change)));
   renderDistributorMenu(selectedDistributor); saveGameState();
 });
@@ -1592,7 +1596,7 @@ filterItems.addEventListener('click', (event) => {
 
 function renderFilterPicker() {
   const selectedIds = (selectedFilter.dataset.filterItemIds ?? '').split(',').filter(Boolean);
-  const items = filterPickerTab === 'ores' ? drillResources : filterPickerTab === 'powders' ? crushedResources : filterPickerTab === 'ingots' ? smeltedResources : filterPickerTab === 'components' ? [...pressedResources, ...gearResources, ...bearingResources] : inventoryItems.filter((item) => item.id !== 'trash');
+  const items = filterPickerTab === 'ores' ? drillResources : filterPickerTab === 'powders' ? crushedResources : filterPickerTab === 'ingots' ? smeltedResources : filterPickerTab === 'components' ? [...pressedResources, ...gearResources, ...bearingResources, ...rodResources] : inventoryItems.filter((item) => item.id !== 'trash');
   filterPickerTabs.innerHTML = [['all','Всё'],['ores','Руда'],['powders','Порошки'],['ingots','Слитки'],['components','Компоненты']].map(([id,label]) => `<button type="button" data-filter-tab="${id}" class="${filterPickerTab === id ? 'is-active' : ''}">${label}</button>`).join('');
   filterPicker.innerHTML = `<button type="button" class="filter-picker-clear" data-resource-id="">Очистить ячейку</button>${items.map((item) => `<button type="button" data-resource-id="${item.id}" class="${selectedIds.includes(item.id) ? 'is-selected' : ''}">${item.image ? `<img src="${item.image}" alt="">` : ''}<span>${item.name}</span></button>`).join('')}`;
 }
@@ -1643,6 +1647,7 @@ function renderFurnaceMenu(furnace) {
   furnaceOutputName.textContent = output?.name ?? '—';
   furnaceOutputCount.textContent = output ? String(count) : '0';
   furnaceArrowProgress.style.width = `${progress * 100}%`;
+  energyController.renderDevice(furnaceMenu, furnace);
   renderCompactUpgrade(furnaceUpgrade, level, MAX_FURNACE_LEVEL, upgradeCost, 'печь');
 }
 
@@ -1671,6 +1676,7 @@ function openPressMenu(press) {
   pressInputName.textContent = input?.name ?? 'Нет слитка'; pressInputCount.textContent = String(Number(press.dataset.pressInputCount ?? 0));
   pressOutputName.textContent = output?.name ?? '—'; pressOutputCount.textContent = output ? pressInputCount.textContent : '0';
   pressArrowProgress.style.width = `${next ? Math.max(0, Math.min(100, (1 - (next - Date.now()) / interval) * 100)) : 0}%`;
+  energyController.renderDevice(pressMenu, press);
   const upgradeCost = getUpgradeCost(press, PRESS_UPGRADE_COEFFICIENT);
   renderCompactUpgrade(pressUpgrade, level, MAX_FURNACE_LEVEL, upgradeCost, 'пресс');
   pressMenu.classList.add('is-visible');
@@ -1681,24 +1687,27 @@ function renderMetalFormerRecipes(metalFormer) {
   const availableMaterialCount = getAvailableMetalFormerMaterialCount(level);
   if (!selectedMetalFormerRecipeType) {
     const selectedRecipe = getMetalFormerRecipe(metalFormer);
-    const selectedRecipeType = selectedRecipe?.output.id.endsWith('-bearing') ? 'bearing' : selectedRecipe ? 'gear' : null;
+    const selectedRecipeType = selectedRecipe?.output.id.endsWith('-bearing')
+      ? 'bearing'
+      : selectedRecipe?.output.id.endsWith('-rod') ? 'rod' : selectedRecipe ? 'gear' : null;
     metalFormerRecipes.innerHTML = `<button type="button" class="metal-former-recipes-back" data-recipe-close>← Производство</button>${[
       { id: 'gear', name: 'Шестерёнки', image: gearResources[0].image, enabled: true, selected: selectedRecipeType === 'gear' },
       { id: 'bearing', name: 'Подшипники', image: bearingResources[0].image, enabled: true, selected: selectedRecipeType === 'bearing' },
-      { id: 'rod', name: 'Стержни', enabled: false },
-      { id: 'wire', name: 'Провода', enabled: false },
+      { id: 'rod', name: 'Стержни', image: rodResources[0].image, enabled: true, selected: selectedRecipeType === 'rod' },
     ].map((type) => `<button type="button" data-recipe-type="${type.id}" class="${type.selected ? 'is-selected' : ''}" ${type.enabled ? '' : 'disabled'}>
       ${type.image ? `<img src="${type.image}" alt="">` : ''}<span>${type.name}${type.selected ? `<small>Выбрано: ${selectedRecipe.output.name}</small>` : type.enabled ? '<small>Выбрать материал</small>' : '<small>Будет добавлено позже</small>'}</span>
     </button>`).join('')}`;
     return;
   }
 
-  const recipeResources = selectedMetalFormerRecipeType === 'bearing' ? bearingResources : gearResources;
+  const recipeResources = selectedMetalFormerRecipeType === 'bearing'
+    ? bearingResources
+    : selectedMetalFormerRecipeType === 'rod' ? rodResources : gearResources;
   metalFormerRecipes.innerHTML = `<button type="button" class="metal-former-recipes-back" data-recipe-back>← Тип рецепта</button>${recipeResources.map((output, index) => {
     const input = smeltedResources[index];
     const isLocked = index >= availableMaterialCount;
     return `<button type="button" data-recipe-id="${output.id}" class="${metalFormer.dataset.metalFormerRecipeId === output.id ? 'is-selected' : ''}" ${isLocked ? 'disabled' : ''}>
-      <img src="${output.image}" alt=""><span>${output.name}<small>1 × ${input?.name ?? 'слиток'}</small></span>
+      <img src="${output.image}" alt=""><span>${output.name}<small>1 × ${input?.name ?? 'слиток'}${selectedMetalFormerRecipeType === 'rod' ? ` → 2 × ${output.name}` : ''}</small></span>
     </button>`;
   }).join('')}`;
 }
@@ -1724,8 +1733,9 @@ function openMetalFormerMenu(metalFormer) {
   metalFormerInputName.textContent = recipe?.input?.name ?? 'Выберите рецепт';
   metalFormerOutputName.textContent = recipe?.output?.name ?? 'Выберите рецепт';
   metalFormerInputCount.textContent = String(inputCount);
-  metalFormerOutputCount.textContent = recipe ? String(inputCount) : '0';
+  metalFormerOutputCount.textContent = recipe ? String(inputCount * recipe.outputCount) : '0';
   metalFormerArrowProgress.style.width = `${next ? Math.max(0, Math.min(100, (1 - (next - Date.now()) / METAL_FORMER_PROCESS_MS) * 100)) : 0}%`;
+  energyController.renderDevice(metalFormerMenu, metalFormer);
   if (!metalFormerRecipes.classList.contains('is-visible')) {
     renderMetalFormerRecipes(metalFormer);
   }
@@ -1779,6 +1789,7 @@ function openRecipeMachineMenu(machine) {
   recipeMachineMenu.setAttribute('aria-label', `Меню: ${definition.name}`);
   recipeMachineLevel.textContent = `${level} ур.`;
   recipeMachineRate.textContent = `${formatAmount(definition.processMs / 1000)} сек.`;
+  energyController.renderDevice(recipeMachineMenu, machine);
   renderCompactUpgrade(recipeMachineUpgrade, level, machines.maxLevel, upgradeCost, definition.name.toLowerCase());
   if (!recipeMachineRecipes.classList.contains('is-visible')) renderRecipeMachineRecipes(machine);
   recipeMachineMenu.classList.add('is-visible');
@@ -1789,6 +1800,46 @@ function closeRecipeMachineMenu() {
   recipeMachineRecipes.classList.remove('is-visible');
   selectedRecipeMachine = null;
   selectedRecipeMachineCategory = null;
+}
+
+function renderGeneratorMenu(generator) {
+  const level = Number(generator.dataset.level ?? 1);
+  const upgradeCost = getUpgradeCost(generator, GENERATOR_UPGRADE_COEFFICIENT);
+  const burnDuration = energyController.getGeneratorBurnDuration(level);
+  const burnEndsAt = Number(generator.dataset.generatorBurnEndsAt ?? 0);
+  const isBurning = generator.dataset.generatorIsActive !== 'false'
+    && Number(generator.dataset.generatorCoalCount ?? 0) > 0
+    && burnEndsAt > Date.now();
+  const burnProgress = isBurning ? Math.max(0, Math.min(1, (burnEndsAt - Date.now()) / burnDuration)) : 0;
+  const currentOutput = isBurning ? energyController.getGeneratorOutput(level) : 0;
+  generatorLevel.textContent = `${level} ур.`;
+  generatorOutputValue.textContent = formatAmount(currentOutput);
+  generatorOutput.setAttribute('aria-label', `Текущая выработка энергии: ${formatAmount(currentOutput)}`);
+  generatorBurnTime.textContent = `${formatAmount(burnDuration / 1000)} сек.`;
+  generatorCoalCount.textContent = String(Number(generator.dataset.generatorCoalCount ?? 0));
+  generatorFlameProgress.style.height = `${burnProgress * 100}%`;
+  generatorFlame.setAttribute('aria-valuenow', String(Math.round(burnProgress * 100)));
+  renderCompactUpgrade(generatorUpgrade, level, machines.maxLevel, upgradeCost, 'генератор');
+}
+
+function openGeneratorMenu(generator) {
+  closeMachineMenu();
+  closeCrusherMenu();
+  closeFurnaceMenu();
+  closeFilterMenu();
+  closeDistributorMenu();
+  closeMetalFormerMenu();
+  closeRecipeMachineMenu();
+  pressMenu.classList.remove('is-visible');
+  selectedPress = null;
+  selectedGenerator = generator;
+  renderGeneratorMenu(generator);
+  generatorMenu.classList.add('is-visible');
+}
+
+function closeGeneratorMenu() {
+  generatorMenu.classList.remove('is-visible');
+  selectedGenerator = null;
 }
 
 pressUpgrade.addEventListener('click', () => {
@@ -1855,12 +1906,13 @@ function confirmDeletion() {
     0,
   );
   buildingsMarkedForDeletion.forEach((building) => {
-    clearWarehouseEmissionQueue(building);
+    warehouseOutput.clear(building);
     buildings.delete(building.dataset.cellKey);
     building.remove();
   });
   refreshConveyors();
   if (refund) setMoney(getMoney() + refund);
+  else renderResources();
   setDeleteMode(false);
   placementMenu.classList.remove('is-visible');
   saveGameState();
@@ -1990,6 +2042,11 @@ map.addEventListener('pointerdown', (event) => {
   }
   setInventoryOpen(false);
   const building = event.target.closest('.building');
+  if (building?.classList.contains('building--draft')) {
+    removeDraftBuilding(building);
+    hidePlacementPreview();
+    return;
+  }
   if (deleteMode && building && !building.classList.contains('building--draft')) {
     toggleBuildingDeletion(building);
     return;
@@ -2013,6 +2070,7 @@ map.addEventListener('pointerdown', (event) => {
     return;
   }
   if (selectedRecipeMachine && building !== selectedRecipeMachine) closeRecipeMachineMenu();
+  if (selectedGenerator && building !== selectedGenerator) closeGeneratorMenu();
   if (building?.classList.contains('building--drill') && !selectedProduct && !draftBuildings.size) {
     openDrillMenu(building);
     return;
@@ -2029,6 +2087,10 @@ map.addEventListener('pointerdown', (event) => {
   if (building?.classList.contains('building--metal-former') && !selectedProduct && !draftBuildings.size) { openMetalFormerMenu(building); return; }
   if ((building?.classList.contains('building--former') || building?.classList.contains('building--component-assembler'))
     && !selectedProduct && !draftBuildings.size) { openRecipeMachineMenu(building); return; }
+  if (building?.classList.contains('building--generator') && !selectedProduct && !draftBuildings.size) {
+    openGeneratorMenu(building);
+    return;
+  }
   if (building?.classList.contains('building--warehouse') && !selectedProduct && !draftBuildings.size) {
     setShopOpen(false);
     setInventoryOpen(true, 'warehouse', building);
@@ -2051,6 +2113,7 @@ map.addEventListener('pointerdown', (event) => {
   selectedPress = null;
   closeMetalFormerMenu();
   closeRecipeMachineMenu();
+  closeGeneratorMenu();
   pointerStart = { x: event.clientX, y: event.clientY, cameraX: camera.x, cameraY: camera.y };
   map.classList.add('is-panning');
 });
@@ -2149,6 +2212,8 @@ window.setInterval(runCrushers, 100);
 window.setInterval(runFurnaces, 100);
 window.setInterval(runPresses, 100);
 window.setInterval(runMetalFormers, 100);
+window.setInterval(runGenerators, 250);
+window.setInterval(energyController.updateStorage, 1_000);
 window.setInterval(() => saveGameState({ logServerSave: true }), 10_000);
 
 shopButton.addEventListener('click', () => {
@@ -2163,79 +2228,6 @@ moveButton.addEventListener('click', () => {
 rotateButton.addEventListener('click', () => {
   if (selectedProduct || draftBuildings.size) return;
   setRotateMode(!rotateMode);
-});
-
-inventoryButton.addEventListener('click', () => {
-  setShopOpen(false);
-  const isPanelInventoryOpen = inventoryPopover.classList.contains('is-open') && inventorySource === 'panel';
-  setInventoryOpen(!isPanelInventoryOpen, 'panel');
-});
-
-inventoryPopover.addEventListener('pointerdown', (event) => {
-  if (!inventoryDetail.classList.contains('is-visible') || inventoryDetail.contains(event.target)) return;
-  selectedInventoryItemId = null;
-  renderInventoryDetail();
-});
-
-inventoryGrid.addEventListener('click', (event) => {
-  const slot = event.target.closest('[data-item-id]');
-  if (!slot) {
-    selectedInventoryItemId = null;
-    renderInventoryDetail();
-    return;
-  }
-  selectedInventoryItemId = slot.dataset.itemId;
-  renderInventoryDetail();
-});
-
-inventoryDetail.addEventListener('click', (event) => {
-  if (event.target.closest('[data-inventory-detail-close]')) {
-    selectedInventoryItemId = null;
-    renderInventoryDetail();
-    return;
-  }
-  const releaseForm = event.target.closest('.inventory-release[data-item-id]');
-  if (releaseForm) {
-    const digitButton = event.target.closest('[data-release-digit]');
-    const currentValue = releaseForm.dataset.releaseValue ?? '';
-    if (digitButton) {
-      const nextValue = `${currentValue}${digitButton.dataset.releaseDigit}`.replace(/^0+/, '');
-      setInventoryQuantityFormValue(releaseForm, nextValue);
-      return;
-    }
-    if (event.target.closest('[data-release-backspace]')) {
-      const nextValue = currentValue.slice(0, -1);
-      setInventoryQuantityFormValue(releaseForm, nextValue);
-      return;
-    }
-    if (event.target.closest('[data-release-all]')) {
-      const count = Number(inventory[releaseForm.dataset.itemId] ?? 0);
-      setInventoryQuantityFormValue(releaseForm, count);
-      return;
-    }
-  }
-});
-
-inventoryDetail.addEventListener('submit', (event) => {
-  const form = event.target.closest('.inventory-release[data-item-id]');
-  if (!form) return;
-  event.preventDefault();
-  const warehouse = selectedInventoryWarehouse;
-  const count = Number(inventory[form.dataset.itemId] ?? 0);
-  const quantity = Math.floor(Number(form.dataset.releaseValue));
-  if (!Number.isFinite(quantity) || quantity < 1 || quantity > count) return;
-  if (inventorySource === 'warehouse') {
-    if (!warehouse || buildings.get(warehouse.dataset.cellKey) !== warehouse) return;
-    enqueueWarehouseEmission(warehouse, form.dataset.itemId, quantity);
-  } else {
-    const item = inventoryItems.find((entry) => entry.id === form.dataset.itemId);
-    if (!item || item.sellPrice <= 0) return;
-    inventory[item.id] = count - quantity;
-    setMoney(getMoney() + quantity * item.sellPrice);
-    saveGameState();
-  }
-  selectedInventoryItemId = null;
-  renderInventory();
 });
 
 machineUpgrade.addEventListener('click', () => {
@@ -2310,7 +2302,9 @@ metalFormerRecipes.addEventListener('click', (event) => {
   const recipeButton = event.target.closest('[data-recipe-id]');
   if (!recipeButton || !selectedMetalFormer || !buildings.has(selectedMetalFormer.dataset.cellKey)) return;
   const recipeId = recipeButton.dataset.recipeId;
-  const recipeResources = selectedMetalFormerRecipeType === 'bearing' ? bearingResources : gearResources;
+  const recipeResources = selectedMetalFormerRecipeType === 'bearing'
+    ? bearingResources
+    : selectedMetalFormerRecipeType === 'rod' ? rodResources : gearResources;
   const recipeIndex = recipeResources.findIndex((item) => item.id === recipeId);
   if (recipeIndex < 0 || recipeIndex >= getAvailableMetalFormerMaterialCount(Number(selectedMetalFormer.dataset.level ?? 1))) return;
   const previousRecipe = getMetalFormerRecipe(selectedMetalFormer);
@@ -2377,6 +2371,17 @@ recipeMachineUpgrade.addEventListener('click', () => {
   saveGameState();
 });
 
+generatorUpgrade.addEventListener('click', () => {
+  if (!selectedGenerator || !buildings.has(selectedGenerator.dataset.cellKey)) return;
+  const level = Number(selectedGenerator.dataset.level ?? 1);
+  const cost = getUpgradeCost(selectedGenerator, GENERATOR_UPGRADE_COEFFICIENT);
+  if (level >= machines.maxLevel || getMoney() < cost) return;
+  selectedGenerator.dataset.level = String(level + 1);
+  setMoney(getMoney() - cost);
+  renderGeneratorMenu(selectedGenerator);
+  saveGameState();
+});
+
 shopGrid.addEventListener('click', (event) => {
   const buyButton = event.target.closest('.product-buy');
   if (!buyButton) return;
@@ -2417,6 +2422,7 @@ confirmPlacement.addEventListener('click', () => {
   });
   draftBuildings.clear();
   refreshConveyors();
+  renderResources();
   finishPlacement();
 });
 
@@ -2433,8 +2439,3 @@ document.addEventListener('pointerdown', (event) => {
   if (!shopPopover.classList.contains('is-open')) return;
   if (!shopPopover.contains(event.target) && !shopButton.contains(event.target)) setShopOpen(false);
 });
-
-document.addEventListener('pointerdown', (event) => {
-  if (!inventoryPopover.classList.contains('is-open')) return;
-  if (!inventoryPopover.contains(event.target) && !inventoryButton.contains(event.target)) setInventoryOpen(false);
-}, true);

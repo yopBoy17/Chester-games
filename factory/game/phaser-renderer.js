@@ -36,11 +36,12 @@ export function createPhaserRenderer({ parent, world, products, resourceTypes, g
     ['product:filter-mode-1', 'assets/products/filters/filter-mode-1.svg'],
     ['product:filter-mode-2', 'assets/products/filters/filter-mode-2.svg'],
     ['product:filter-mode-3', 'assets/products/filters/filter-mode-3.svg'],
-    ['product:distributor-mode-1', 'assets/products/distributor-mode-1.svg'],
-    ['product:distributor-mode-2', 'assets/products/distributor-mode-2.svg'],
+    ['product:distributor-mode-1', 'assets/products/distributors/distributor-mode-1.svg'],
+    ['product:distributor-mode-2', 'assets/products/distributors/distributor-mode-2.svg'],
     ['product:conveyor', CONVEYOR_TEXTURE],
   ]);
   const sprites = new Map();
+  const resourceFrames = new Map();
   const resourceKeys = new WeakMap();
   let nextResourceKey = 1;
   let placementPreview = null;
@@ -62,8 +63,38 @@ export function createPhaserRenderer({ parent, world, products, resourceTypes, g
       },
       create() {
         scene = this;
+        resourceTypes.filter((item) => item.image).forEach((item) => {
+          const textureKey = `resource:${item.id}`;
+          const texture = this.textures.get(textureKey);
+          const source = texture.getSourceImage();
+          if (!source?.width || !source?.height) return;
+          const canvas = document.createElement('canvas');
+          canvas.width = source.width;
+          canvas.height = source.height;
+          const context = canvas.getContext('2d', { willReadFrequently: true });
+          context.drawImage(source, 0, 0);
+          const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+          let left = canvas.width;
+          let top = canvas.height;
+          let right = -1;
+          let bottom = -1;
+          for (let y = 0; y < canvas.height; y += 1) {
+            for (let x = 0; x < canvas.width; x += 1) {
+              if (pixels[(y * canvas.width + x) * 4 + 3] <= 8) continue;
+              left = Math.min(left, x);
+              top = Math.min(top, y);
+              right = Math.max(right, x);
+              bottom = Math.max(bottom, y);
+            }
+          }
+          if (right < left || bottom < top) return;
+          const frameName = 'visible-content';
+          texture.add(frameName, 0, left, top, right - left + 1, bottom - top + 1);
+          resourceFrames.set(textureKey, frameName);
+        });
         this.grid = this.add.graphics();
         this.buildingEffects = this.add.graphics();
+        this.buildingIndicators = this.add.graphics().setDepth(3);
         this.grid.lineStyle(1, 0xeef0f2, 1);
         for (let index = 0; index <= mapSize; index += 1) {
           const point = index * FACTORY_CONFIG.cellSize;
@@ -96,12 +127,13 @@ export function createPhaserRenderer({ parent, world, products, resourceTypes, g
     return `product:${building.dataset.productId}`;
   }
 
-  function syncSprite(key, texture, x, y, size, rotation = 0, tint = null) {
+  function syncSprite(key, texture, x, y, size, rotation = 0, tint = null, frame = null) {
     if (!scene.textures.exists(texture)) return;
     let sprite = sprites.get(key);
-    if (!sprite || sprite.texture.key !== texture) {
+    const frameName = frame ?? '__BASE';
+    if (!sprite || sprite.texture.key !== texture || sprite.frame.name !== frameName) {
       sprite?.destroy();
-      sprite = scene.add.image(x, y, texture);
+      sprite = frame ? scene.add.image(x, y, texture, frame) : scene.add.image(x, y, texture);
       sprites.set(key, sprite);
     }
     sprite.setPosition(x, y).setDisplaySize(size, size).setRotation(rotation);
@@ -114,6 +146,7 @@ export function createPhaserRenderer({ parent, world, products, resourceTypes, g
     const cellSize = FACTORY_CONFIG.cellSize;
     const levelBackgrounds = ['#ffffff', '#a96d3e', '#68717b', '#c9d0d6', '#d6aa36', '#56abb4', '#8870b4', '#ba6571', '#5c92c8'];
     scene.buildingEffects.clear();
+    scene.buildingIndicators.clear();
     getBuildings().forEach((building, key) => {
       const [cellX, cellY] = key.split(':').map(Number);
       const spriteKey = `building:${key}`;
@@ -122,21 +155,31 @@ export function createPhaserRenderer({ parent, world, products, resourceTypes, g
       const product = products.find((item) => item.id === building.dataset.productId);
       const rotation = isConveyor
         ? Number(building.dataset.conveyorVisualRotation ?? building.dataset.rotation ?? 0) * Math.PI / 180
-        : Number((Number(building.dataset.rotation ?? 0) + (product?.defaultRotation ?? 0)) % 360) * Math.PI / 180;
+        : Number((building.classList.contains('building--has-active-side')
+          ? product?.defaultRotation ?? 0
+          : Number(building.dataset.rotation ?? 0) + (product?.defaultRotation ?? 0)) % 360) * Math.PI / 180;
       if (!isConveyor) {
         const level = Math.max(1, Math.min(9, Number(building.dataset.level ?? 1)));
         scene.buildingEffects.fillStyle(Number.parseInt(levelBackgrounds[level - 1].slice(1), 16), building.classList.contains('building--draft') ? 0.42 : 1);
         scene.buildingEffects.fillRoundedRect(cellX * cellSize + 2, cellY * cellSize + 2, cellSize - 4, cellSize - 4, 6);
         const side = building.dataset.activeSide;
         if (side) {
-          scene.buildingEffects.lineStyle(3, 0x3fbd78, 1);
+          const sideColor = building.dataset.isOutputConnected === 'false'
+            || (building.classList.contains('building--drill') && building.dataset.isEnabled === 'false')
+            ? 0xe45050
+            : 0x3fbd78;
           const edge = {
             bottom: [cellX * cellSize, (cellY + 1) * cellSize, (cellX + 1) * cellSize, (cellY + 1) * cellSize],
             top: [cellX * cellSize, cellY * cellSize, (cellX + 1) * cellSize, cellY * cellSize],
             left: [cellX * cellSize, cellY * cellSize, cellX * cellSize, (cellY + 1) * cellSize],
             right: [(cellX + 1) * cellSize, cellY * cellSize, (cellX + 1) * cellSize, (cellY + 1) * cellSize],
           }[side];
-          if (edge) scene.buildingEffects.lineBetween(...edge);
+          if (edge) {
+            scene.buildingIndicators.lineStyle(7, 0x17212d, 0.9);
+            scene.buildingIndicators.lineBetween(...edge);
+            scene.buildingIndicators.lineStyle(5, sideColor, 1);
+            scene.buildingIndicators.lineBetween(...edge);
+          }
         }
       }
       if (building.classList.contains('building--delete-selected') || building.classList.contains('building--move-selected')) {
@@ -178,11 +221,9 @@ export function createPhaserRenderer({ parent, world, products, resourceTypes, g
       const spriteKey = `resource:${resource.resourceId}:${resourceKeys.get(resource)}`;
       activeKeys.add(spriteKey);
       if (resourceType.image) {
-        const powderSize = cellSize * FACTORY_BALANCE.resources.powderDisplaySize;
-        const displaySize = resourceType.id.endsWith('-powder')
-          ? powderSize
-          : powderSize * FACTORY_BALANCE.resources.otherDisplaySize;
-        syncSprite(spriteKey, `resource:${resourceType.id}`, position.x, position.y, displaySize);
+        const textureKey = `resource:${resourceType.id}`;
+        const displaySize = cellSize * FACTORY_BALANCE.resources.displaySize;
+        syncSprite(spriteKey, textureKey, position.x, position.y, displaySize, 0, resource.isBeingRemoved ? 0xff5555 : null, resourceFrames.get(textureKey));
       } else {
         let sprite = sprites.get(spriteKey);
         if (!sprite) {
@@ -191,6 +232,7 @@ export function createPhaserRenderer({ parent, world, products, resourceTypes, g
         }
         sprite.setPosition(position.x, position.y);
       }
+      sprites.get(spriteKey)?.setAlpha(resource.isBeingRemoved ? 0.4 : 1);
     });
 
     sprites.forEach((sprite, key) => {

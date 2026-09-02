@@ -111,56 +111,88 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
         </button>
       </section>
-      <section class="machine-menu" id="machineMenu" aria-label="Меню бура">
+      <section class="device-menu machine-menu" id="machineMenu" aria-label="Меню бура">
         <strong>Бур</strong>
-        <span class="machine-level">Уровень 1</span>
-        <span class="machine-rate"></span>
+        <div class="device-menu-summary">
+          <span class="machine-level"></span><span class="machine-rate"></span>
+          <button class="machine-toggle is-active" id="machineToggle" type="button" aria-label="Выключить бур" aria-pressed="true">
+            <span class="machine-toggle-track" aria-hidden="true"></span>
+          </button>
+          <button class="machine-upgrade device-menu-upgrade--compact" id="machineUpgrade" type="button" aria-label="Улучшить бур"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg><span></span></button>
+        </div>
         <div class="machine-drop-list"></div>
-        <button class="machine-upgrade" id="machineUpgrade" type="button">Улучшить · 10 $</button>
       </section>
-      <section class="crusher-menu" id="crusherMenu" aria-label="Меню дробилки">
+      <section class="device-menu crusher-menu" id="crusherMenu" aria-label="Меню дробилки">
         <strong>Дробилка</strong>
-        <span class="crusher-level"></span>
-        <span class="crusher-rate"></span>
-        <div class="crusher-process">
-          <div class="crusher-slot"><i class="crusher-input-icon"></i><span class="crusher-input-name">Нет руды</span><b class="crusher-input-count">0</b></div>
-          <div class="crusher-arrow"><span></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13m-5-5 5 5-5 5" /></svg></div>
-          <div class="crusher-slot"><i class="crusher-output-icon"></i><span class="crusher-output-name">—</span><b class="crusher-output-count">0</b></div>
+        <div class="device-menu-summary">
+          <span class="crusher-level"></span><span class="crusher-rate"></span>
+          <button class="machine-upgrade device-menu-upgrade--compact" id="crusherUpgrade" type="button" aria-label="Улучшить дробилку"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg><span></span></button>
         </div>
-        <p class="crusher-available"></p>
-        <button class="machine-upgrade" id="crusherUpgrade" type="button">Улучшить · 10 $</button>
+        <div class="crusher-process device-production">
+          <div class="crusher-slot"><span class="crusher-input-name">Нет руды</span><i class="crusher-input-icon"></i><b class="crusher-input-count">0</b></div>
+          <div class="device-production-arrow crusher-arrow"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13m-5-5 5 5-5 5" /></svg><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13m-5-5 5 5-5 5" /></svg></span></div>
+          <div class="crusher-slot"><span class="crusher-output-name">—</span><i class="crusher-output-icon"></i><b class="crusher-output-count">0</b></div>
+        </div>
       </section>
-      <section class="crusher-menu" id="furnaceMenu" aria-label="Меню печи">
+      <section class="device-menu crusher-menu" id="furnaceMenu" aria-label="Меню печи">
         <strong>Печь</strong>
-        <span class="furnace-level"></span>
-        <span class="furnace-rate"></span>
-        <div class="crusher-process">
-          <div class="crusher-slot"><i class="furnace-input-icon"></i><span class="furnace-input-name">Нет порошка</span><b class="furnace-input-count">0</b></div>
-          <div class="crusher-arrow furnace-arrow"><span></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13m-5-5 5 5-5 5" /></svg></div>
-          <div class="crusher-slot"><i class="furnace-output-icon"></i><span class="furnace-output-name">—</span><b class="furnace-output-count">0</b></div>
+        <div class="device-menu-summary">
+          <span class="furnace-level"></span><span class="furnace-rate"></span>
+          <button class="machine-upgrade device-menu-upgrade--compact" id="furnaceUpgrade" type="button" aria-label="Улучшить печь"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg><span></span></button>
         </div>
-        <p class="furnace-available"></p>
-        <button class="machine-upgrade" id="furnaceUpgrade" type="button">Улучшить · 10 $</button>
+        <div class="crusher-process device-production">
+          <div class="crusher-slot"><span class="furnace-input-name">Нет порошка</span><i class="furnace-input-icon"></i><b class="furnace-input-count">0</b></div>
+          <div class="device-production-arrow crusher-arrow furnace-arrow"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13m-5-5 5 5-5 5" /></svg><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13m-5-5 5 5-5 5" /></svg></span></div>
+          <div class="crusher-slot"><span class="furnace-output-name">—</span><i class="furnace-output-icon"></i><b class="furnace-output-count">0</b></div>
+        </div>
       </section>
-      <section class="crusher-menu" id="pressMenu" aria-label="Меню пресса">
-        <strong>Пресс</strong><span class="press-level"></span><span class="press-rate"></span>
-        <div class="crusher-process"><div class="crusher-slot"><i class="press-input-icon"></i><span class="press-input-name">Нет слитка</span><b class="press-input-count">0</b></div><div class="crusher-arrow press-arrow"><span></span><svg viewBox="0 0 24 24"><path d="M4 12h13m-5-5 5 5-5 5"/></svg></div><div class="crusher-slot"><i class="press-output-icon"></i><span class="press-output-name">—</span><b class="press-output-count">0</b></div></div>
-        <p class="press-available crusher-available"></p><button class="machine-upgrade" id="pressUpgrade" type="button">Улучшить</button>
+      <section class="device-menu crusher-menu" id="pressMenu" aria-label="Меню пресса">
+        <strong>Пресс</strong>
+        <div class="device-menu-summary">
+          <span class="press-level"></span><span class="press-rate"></span>
+          <button class="machine-upgrade device-menu-upgrade--compact" id="pressUpgrade" type="button" aria-label="Улучшить пресс"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg><span></span></button>
+        </div>
+        <div class="crusher-process device-production"><div class="crusher-slot"><span class="press-input-name">Нет слитка</span><i class="press-input-icon"></i><b class="press-input-count">0</b></div><div class="device-production-arrow crusher-arrow press-arrow"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13m-5-5 5 5-5 5"/></svg><span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13m-5-5 5 5-5 5"/></svg></span></div><div class="crusher-slot"><span class="press-output-name">—</span><i class="press-output-icon"></i><b class="press-output-count">0</b></div></div>
       </section>
-      <section class="crusher-menu" id="metalFormerMenu" aria-label="Меню металлоформовщика">
+      <section class="device-menu crusher-menu" id="metalFormerMenu" aria-label="Меню металлоформовщика">
         <strong>Металлоформовщик</strong>
-        <span class="metal-former-level"></span>
-        <span class="metal-former-rate"></span>
-        <div class="crusher-process">
-          <div class="crusher-slot"><i class="metal-former-input-icon"></i><span class="metal-former-input-name">Выберите рецепт</span><b class="metal-former-input-count">0</b></div>
-          <button class="crusher-arrow metal-former-arrow" id="metalFormerRecipeButton" type="button" aria-label="Выбрать рецепт"><span></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13m-5-5 5 5-5 5" /></svg></button>
-          <div class="crusher-slot"><i class="metal-former-output-icon"></i><span class="metal-former-output-name">Выберите рецепт</span><b class="metal-former-output-count">0</b></div>
+        <div class="device-menu-summary metal-former-summary">
+          <span class="metal-former-level"></span>
+          <span class="metal-former-rate"></span>
+          <button class="machine-upgrade device-menu-upgrade--compact" id="metalFormerUpgrade" type="button" aria-label="Улучшить металлоформовщик">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg><span></span>
+          </button>
         </div>
-        <p class="metal-former-status crusher-available">Нажмите на стрелку, чтобы выбрать рецепт.</p>
+        <div class="crusher-process device-production">
+          <div class="crusher-slot"><span class="metal-former-input-name">Выберите рецепт</span><i class="metal-former-input-icon"></i><b class="metal-former-input-count">0</b></div>
+          <button class="device-production-arrow metal-former-arrow" id="metalFormerRecipeButton" type="button" aria-label="Выбрать рецепт">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13m-5-5 5 5-5 5" /></svg>
+            <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13m-5-5 5 5-5 5" /></svg></span>
+          </button>
+          <div class="crusher-slot"><span class="metal-former-output-name">Выберите рецепт</span><i class="metal-former-output-icon"></i><b class="metal-former-output-count">0</b></div>
+        </div>
         <div class="metal-former-recipes" id="metalFormerRecipes"></div>
-        <button class="machine-upgrade" id="metalFormerUpgrade" type="button">Улучшить</button>
       </section>
-      <section class="crusher-menu" id="filterMenu" aria-label="Меню фильтра">
+      <section class="device-menu crusher-menu" id="recipeMachineMenu" aria-label="Меню механизма с рецептами">
+        <strong class="recipe-machine-title"></strong>
+        <div class="device-menu-summary recipe-machine-summary">
+          <span class="recipe-machine-level"></span>
+          <span class="recipe-machine-rate"></span>
+          <button class="machine-upgrade device-menu-upgrade--compact" id="recipeMachineUpgrade" type="button" aria-label="Улучшить механизм">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg><span></span>
+          </button>
+        </div>
+        <div class="crusher-process device-production">
+          <div class="crusher-slot"><span>Выберите рецепт</span><i class="recipe-machine-input-icon"></i><b>0</b></div>
+          <button class="device-production-arrow metal-former-arrow" id="recipeMachineRecipeButton" type="button" aria-label="Выбрать рецепт">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13m-5-5 5 5-5 5" /></svg>
+            <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h13m-5-5 5 5-5 5" /></svg></span>
+          </button>
+          <div class="crusher-slot"><span>Выберите рецепт</span><i class="recipe-machine-output-icon"></i><b>0</b></div>
+        </div>
+        <div class="metal-former-recipes" id="recipeMachineRecipes"></div>
+      </section>
+      <section class="device-menu crusher-menu" id="filterMenu" aria-label="Меню фильтра">
         <strong>Фильтр</strong>
         <p class="crusher-available">До 6 выбранных ресурсов выходят по белой стрелке. Остальные — по чёрной.</p>
         <div class="filter-modes" id="filterModes">
@@ -172,7 +204,7 @@
         <div class="filter-picker-tabs" id="filterPickerTabs"></div>
         <div class="filter-picker" id="filterPicker"></div>
       </section>
-      <section class="crusher-menu" id="distributorMenu" aria-label="Меню распределителя">
+      <section class="device-menu crusher-menu" id="distributorMenu" aria-label="Меню распределителя">
         <strong>Распределитель</strong>
         <p class="crusher-available">Ресурсы по очереди уходят в зелёный и красный выходы.</p>
         <div class="filter-modes" id="distributorModes"><button type="button" data-mode="1">А</button><button type="button" data-mode="2">Б</button></div>

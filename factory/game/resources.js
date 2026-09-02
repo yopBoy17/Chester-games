@@ -61,6 +61,25 @@ export const gearResources = smeltedResources.map((resource) => ({
   image: `assets/gears/${resource.id.replace('-ingot', '')}-gear.png`,
 }));
 
+const bearingNames = {
+  iron: 'Железный подшипник',
+  copper: 'Медный подшипник',
+  tin: 'Оловянный подшипник',
+  silver: 'Серебряный подшипник',
+  gold: 'Золотой подшипник',
+  tungsten: 'Вольфрамовый подшипник',
+  platinum: 'Платиновый подшипник',
+  diamond: 'Алмазный подшипник',
+};
+
+export const bearingResources = smeltedResources.map((resource) => ({
+  id: resource.id.replace('-ingot', '-bearing'),
+  catalogId: resource.catalogId + 30,
+  name: bearingNames[resource.id.replace('-ingot', '')],
+  color: resource.color,
+  image: `assets/bearings/${resource.id.replace('-ingot', '')}-bearing.png`,
+}));
+
 export function getResourceType(resourceId) {
-  return [...drillResources, ...crushedResources, ...smeltedResources, ...pressedResources, ...gearResources].find((resource) => resource.id === resourceId) ?? null;
+  return [...drillResources, ...crushedResources, ...smeltedResources, ...pressedResources, ...gearResources, ...bearingResources].find((resource) => resource.id === resourceId) ?? null;
 }

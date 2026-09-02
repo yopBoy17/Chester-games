@@ -3,7 +3,7 @@ import { FACTORY_BALANCE } from './game/balance.js';
 import { cellNextTo, directionForRotation, oppositeSide, sideToward } from './game/conveyor.js';
 import { formatDrillRate, getDrillChances as calculateDrillChances, getDrillInterval as calculateDrillInterval, pickDrillResource as pickCalculatedDrillResource } from './game/machines/drill.js';
 import { formatProcessingRate, getCrusherResources as calculateCrusherResources, getFurnaceResources as calculateFurnaceResources, getProcessingInterval } from './game/machines/processing.js';
-import { crushedResources, drillResources, gearResources, getResourceType, pressedResources, smeltedResources } from './game/resources.js';
+import { bearingResources, crushedResources, drillResources, gearResources, getResourceType, pressedResources, smeltedResources } from './game/resources.js';
 import { createPhaserRenderer } from './game/phaser-renderer.js';
 
 const map = document.querySelector('.map');
@@ -18,6 +18,7 @@ const inventoryButton = document.querySelector('#inventoryButton');
 const shopPopover = document.querySelector('#shopPopover');
 const shopGrid = document.querySelector('.shop-grid');
 const inventoryPopover = document.querySelector('#inventoryPopover');
+const inventoryTitle = inventoryPopover.querySelector('.inventory-header strong');
 const inventoryGrid = document.querySelector('#inventoryGrid');
 const inventoryDetail = document.querySelector('#inventoryDetail');
 const inventoryTabs = document.querySelector('#inventoryTabs');
@@ -27,6 +28,7 @@ const placementName = document.querySelector('.placement-name');
 const machineMenu = document.querySelector('#machineMenu');
 const machineLevel = document.querySelector('.machine-level');
 const machineRate = document.querySelector('.machine-rate');
+const machineToggle = document.querySelector('#machineToggle');
 const machineDropList = document.querySelector('.machine-drop-list');
 const machineUpgrade = document.querySelector('#machineUpgrade');
 const crusherMenu = document.querySelector('#crusherMenu');
@@ -39,7 +41,6 @@ const crusherOutputIcon = document.querySelector('.crusher-output-icon');
 const crusherOutputName = document.querySelector('.crusher-output-name');
 const crusherOutputCount = document.querySelector('.crusher-output-count');
 const crusherArrowProgress = document.querySelector('.crusher-arrow > span');
-const crusherAvailable = document.querySelector('.crusher-available');
 const crusherUpgrade = document.querySelector('#crusherUpgrade');
 const furnaceMenu = document.querySelector('#furnaceMenu');
 const furnaceLevel = document.querySelector('.furnace-level');
@@ -51,10 +52,9 @@ const furnaceOutputIcon = document.querySelector('.furnace-output-icon');
 const furnaceOutputName = document.querySelector('.furnace-output-name');
 const furnaceOutputCount = document.querySelector('.furnace-output-count');
 const furnaceArrowProgress = document.querySelector('.furnace-arrow > span');
-const furnaceAvailable = document.querySelector('.furnace-available');
 const furnaceUpgrade = document.querySelector('#furnaceUpgrade');
 const pressMenu = document.querySelector('#pressMenu');
-const pressLevel = document.querySelector('.press-level'), pressRate = document.querySelector('.press-rate'), pressInputName = document.querySelector('.press-input-name'), pressOutputName = document.querySelector('.press-output-name'), pressInputCount = document.querySelector('.press-input-count'), pressOutputCount = document.querySelector('.press-output-count'), pressAvailable = document.querySelector('.press-available'), pressUpgrade = document.querySelector('#pressUpgrade'), pressArrowProgress = document.querySelector('.press-arrow > span');
+const pressLevel = document.querySelector('.press-level'), pressRate = document.querySelector('.press-rate'), pressInputIcon = document.querySelector('.press-input-icon'), pressOutputIcon = document.querySelector('.press-output-icon'), pressInputName = document.querySelector('.press-input-name'), pressOutputName = document.querySelector('.press-output-name'), pressInputCount = document.querySelector('.press-input-count'), pressOutputCount = document.querySelector('.press-output-count'), pressUpgrade = document.querySelector('#pressUpgrade'), pressArrowProgress = document.querySelector('.press-arrow > span');
 const metalFormerMenu = document.querySelector('#metalFormerMenu');
 const metalFormerLevel = document.querySelector('.metal-former-level');
 const metalFormerRate = document.querySelector('.metal-former-rate');
@@ -64,11 +64,17 @@ const metalFormerInputCount = document.querySelector('.metal-former-input-count'
 const metalFormerOutputIcon = document.querySelector('.metal-former-output-icon');
 const metalFormerOutputName = document.querySelector('.metal-former-output-name');
 const metalFormerOutputCount = document.querySelector('.metal-former-output-count');
-const metalFormerStatus = document.querySelector('.metal-former-status');
 const metalFormerArrowProgress = document.querySelector('.metal-former-arrow > span');
 const metalFormerRecipeButton = document.querySelector('#metalFormerRecipeButton');
 const metalFormerRecipes = document.querySelector('#metalFormerRecipes');
 const metalFormerUpgrade = document.querySelector('#metalFormerUpgrade');
+const recipeMachineMenu = document.querySelector('#recipeMachineMenu');
+const recipeMachineTitle = document.querySelector('.recipe-machine-title');
+const recipeMachineLevel = document.querySelector('.recipe-machine-level');
+const recipeMachineRate = document.querySelector('.recipe-machine-rate');
+const recipeMachineRecipeButton = document.querySelector('#recipeMachineRecipeButton');
+const recipeMachineRecipes = document.querySelector('#recipeMachineRecipes');
+const recipeMachineUpgrade = document.querySelector('#recipeMachineUpgrade');
 const filterMenu = document.querySelector('#filterMenu');
 const filterModes = document.querySelector('#filterModes');
 const filterItems = document.querySelector('#filterItems');
@@ -84,12 +90,26 @@ const BASE_CELL_SIZE = FACTORY_CONFIG.cellSize;
 const MAP_SIZE = FACTORY_CONFIG.mapSize;
 const MIN_SCALE = FACTORY_CONFIG.minScale;
 const MAX_SCALE = FACTORY_CONFIG.maxScale;
+const WORLD_SIZE = BASE_CELL_SIZE * MAP_SIZE;
+world.style.width = `${WORLD_SIZE}px`;
+world.style.height = `${WORLD_SIZE}px`;
+world.style.backgroundSize = `${BASE_CELL_SIZE}px ${BASE_CELL_SIZE}px`;
 const STORAGE_KEY = 'chester-games.factory.save.v1';
 const SAVE_API_URL = new URL('api/save', window.location.href).href;
 localStorage.removeItem(STORAGE_KEY);
 
-const camera = { x: 0, y: 0, scale: 1 };
+function getFittedCameraScale() {
+  if (window.innerWidth > 620 && window.innerHeight > 600) return 1;
+  const availableWidth = map.clientWidth || window.innerWidth;
+  const availableHeight = map.clientHeight || Math.max(1, window.innerHeight - 132);
+  return Math.min(1, Math.max(MIN_SCALE, Math.min(availableWidth, availableHeight) / WORLD_SIZE));
+}
+
+const camera = { x: 0, y: 0, scale: getFittedCameraScale() };
+const activePointers = new Map();
 let pointerStart = null;
+let pinchStart = null;
+let cameraScaleWasAdjusted = false;
 let selectedProduct = null;
 let moveMode = false;
 let rotateMode = false;
@@ -100,6 +120,9 @@ let selectedCrusher = null;
 let selectedFurnace = null;
 let selectedPress = null;
 let selectedMetalFormer = null;
+let selectedMetalFormerRecipeType = null;
+let selectedRecipeMachine = null;
+let selectedRecipeMachineCategory = null;
 let selectedFilter = null;
 let selectedFilterSlot = null;
 let filterPickerTab = 'all';
@@ -122,20 +145,46 @@ const PRESS_UPGRADE_COEFFICIENT = machines.pressUpgradeCoefficient;
 const METAL_FORMER_PROCESS_MS = machines.metalFormerProcessMs;
 const METAL_FORMER_UPGRADE_COEFFICIENT = machines.metalFormerUpgradeCoefficient;
 const MAX_METAL_FORMER_LEVEL = machines.maxLevel;
+const RECIPE_MACHINE_DEFINITIONS = {
+  former: {
+    name: 'Формовщик',
+    processMs: machines.formerProcessMs,
+    upgradeCoefficient: machines.formerUpgradeCoefficient,
+    categories: [
+      { id: 'wire', name: 'Провода' },
+      { id: 'profiles', name: 'Профили' },
+    ],
+  },
+  'component-assembler': {
+    name: 'Сборщик компонентов',
+    processMs: machines.componentAssemblerProcessMs,
+    upgradeCoefficient: machines.componentAssemblerUpgradeCoefficient,
+    categories: [
+      { id: 'motor', name: 'Двигатели' },
+      { id: 'electronics', name: 'Электрокомпоненты' },
+      { id: 'chip', name: 'Микросхемы' },
+      { id: 'manipulator', name: 'Манипуляторы' },
+    ],
+  },
+};
 const MAX_FURNACE_LEVEL = machines.maxLevel;
 const MAX_CONVEYOR_ITEMS = conveyors.maxItems;
 const CONVEYOR_TRAVEL_MS = conveyors.travelMs;
 const CONVEYOR_TURN_PAUSE_MS = conveyors.turnPauseMs;
+const WAREHOUSE_EMISSION_MS = 500;
 const inventoryItems = [
   { id: 'trash', catalogId: 1, name: 'Мусор', color: '#6f7780', image: 'assets/resources/trash.png', sellPrice: sales.trash },
 ];
 let inventory = { trash: 0 };
 let selectedInventoryItemId = null;
 let inventoryTab = 'all';
+let inventorySource = 'panel';
+let selectedInventoryWarehouse = null;
+const warehouseEmissionQueues = new Map();
 let saveSyncTimer = null;
 
 inventoryItems.push(
-  ...[...drillResources, ...crushedResources, ...smeltedResources, ...pressedResources, ...gearResources].map((resource) => ({
+  ...[...drillResources, ...crushedResources, ...smeltedResources, ...pressedResources, ...gearResources, ...bearingResources].map((resource) => ({
     ...resource,
     sellPrice: sales[resource.id],
   })),
@@ -148,7 +197,7 @@ world.append(cellPreview);
 const products = [
   { id: 'drill', name: 'Бур', price: productPrices.drill, color: '#7194ae', image: 'assets/products/drill.png', footprint: { width: 1, height: 1 }, defaultRotation: 180, description: 'Добывает базовую руду.' },
   { id: 'conveyor', name: 'Конвейер', price: productPrices.conveyor, color: '#77838d', image: 'assets/products/conveyor-straight.png', description: 'Перевозит предметы между машинами.' },
-  { id: 'distributor', name: 'Распределитель', price: productPrices.distributor, color: '#87929a', image: 'assets/products/distributor-mode-1.svg', description: 'Делит поток между двумя выходами.' },
+  { id: 'distributor', name: 'Распределитель', price: productPrices.distributor, color: '#87929a', image: 'assets/products/distributors/distributor-mode-1.svg', description: 'Делит поток между двумя выходами.' },
   { id: 'filter', name: 'Фильтр', price: productPrices.filter, color: '#f4f5f6', image: 'assets/products/filters/filter-mode-1.svg', description: 'Разделяет ресурсы на два выхода.' },
   { id: 'warehouse', name: 'Склад', price: productPrices.warehouse, color: '#a88054', image: 'assets/products/warehouse.png', description: 'Хранит готовую продукцию.' },
   { id: 'furnace', name: 'Печь', price: productPrices.furnace, color: '#e18550', image: 'assets/products/furnace.png', description: 'Переплавляет руду в слитки.' },
@@ -156,6 +205,8 @@ const products = [
   // { id: 'assembler', name: 'Завод', price: productPrices.assembler, color: '#9b79c8', image: 'assets/products/factory-plant.png', description: 'Собирает детали по рецепту.' },
   { id: 'press', name: 'Пресс', price: productPrices.press, color: '#527ca5', image: 'assets/products/press.png', description: 'Формирует прочные заготовки.' },
   { id: 'metal-former', name: 'Металлоформовщик', price: productPrices.metalFormer, color: '#6b7b89', image: 'assets/products/metal-former.png', description: 'Создаёт детали из металлических слитков.' },
+  { id: 'former', name: 'Формовщик', price: productPrices.former, color: '#60758a', image: 'assets/products/former.png', description: 'Формует детали по выбранному рецепту.' },
+  { id: 'component-assembler', name: 'Сборщик компонентов', price: productPrices.componentAssembler, color: '#596d83', image: 'assets/products/component-assembler.png', description: 'Собирает компоненты по выбранному рецепту.' },
   // { id: 'lab', name: 'Лаборатория', price: productPrices.lab, color: '#62a99a', description: 'Открывает новые технологии.' },
   // { id: 'generator', name: 'Генератор', price: productPrices.generator, color: '#d2a244', description: 'Создаёт энергию для фабрики.' },
   // { id: 'terminal', name: 'Терминал', price: productPrices.terminal, color: '#596f9f', description: 'Автоматизирует работу цеха.' },
@@ -165,7 +216,7 @@ const phaserRenderer = createPhaserRenderer({
   parent: phaserStage,
   world,
   products,
-  resourceTypes: [...inventoryItems, ...drillResources, ...crushedResources, ...smeltedResources, ...pressedResources, ...gearResources],
+  resourceTypes: [...inventoryItems, ...drillResources, ...crushedResources, ...smeltedResources, ...pressedResources, ...gearResources, ...bearingResources],
   getBuildings: () => new Map([...buildings, ...draftBuildings]),
   getMovingResources: () => movingResources,
   getCamera: () => camera,
@@ -179,6 +230,15 @@ function formatAmount(value) {
   if (rounded < 1000) return String(rounded);
   const shortened = (rounded / 1000).toFixed(1);
   return `${shortened}к`;
+}
+
+function renderCompactUpgrade(button, level, maxLevel, cost, deviceName) {
+  const isMaxLevel = level >= maxLevel;
+  button.querySelector('span').textContent = isMaxLevel ? 'Макс.' : `${formatAmount(cost)} $`;
+  button.setAttribute('aria-label', isMaxLevel
+    ? `Максимальный уровень: ${deviceName}`
+    : `Улучшить ${deviceName} за ${formatAmount(cost)} долларов`);
+  button.disabled = isMaxLevel || getMoney() < cost;
 }
 
 function renderResources() {
@@ -224,6 +284,7 @@ function saveGameState({ logServerSave = false } = {}) {
       rotation: Number(building.dataset.rotation ?? 0),
       rotationModel: 2,
       activeSide: building.dataset.activeSide,
+      isEnabled: building.dataset.isEnabled !== 'false',
       level: Number(building.dataset.level ?? 1),
       cost: Number(building.dataset.cost ?? 0),
       crusherInputId: building.dataset.crusherInputId ?? null,
@@ -258,7 +319,7 @@ function saveGameState({ logServerSave = false } = {}) {
       ...[...draftBuildings.values()].map((building) => serializeBuilding(building, true)),
     ],
     conveyorItems: [...movingResources]
-      .filter((item) => item.cell && getConfirmedConveyorAt(item.cell))
+      .filter((item) => !item.isBeingRemoved && item.cell && getConfirmedConveyorAt(item.cell))
       .map((item) => ({ resourceId: item.resourceId, x: item.cell.x, y: item.cell.y })),
     inventory,
     selectedProductId: selectedProduct?.id ?? null,
@@ -306,11 +367,23 @@ function renderInventory() {
   const tabItems = inventoryTab === 'ores' ? drillResources
     : inventoryTab === 'powders' ? crushedResources
     : inventoryTab === 'ingots' ? smeltedResources
-      : inventoryTab === 'components' ? [...pressedResources, ...gearResources] : inventoryItems;
+      : inventoryTab === 'components' ? [...pressedResources, ...gearResources, ...bearingResources] : inventoryItems;
   const filledSlots = tabItems
     .filter((item) => Number(inventory[item.id] ?? 0) > 0)
     .map((item) => ({ ...item, count: Number(inventory[item.id]) }));
   const slots = [...filledSlots, ...Array.from({ length: 100 - filledSlots.length }, () => null)];
+  const currentSlotIds = Array.from(inventoryGrid.children, (slot) => slot.dataset.itemId ?? '');
+  const nextSlotIds = slots.map((item) => item?.id ?? '');
+
+  if (currentSlotIds.length === nextSlotIds.length
+    && currentSlotIds.every((itemId, index) => itemId === nextSlotIds[index])) {
+    slots.forEach((item, index) => {
+      if (item) inventoryGrid.children[index].querySelector('.inventory-count').textContent = item.count;
+    });
+    renderInventoryDetail();
+    return;
+  }
+
   inventoryGrid.innerHTML = slots.map((item) => item
     ? `<button class="inventory-slot" type="button" data-item-id="${item.id}" title="${item.name}">
         <i class="inventory-item-icon" style="background:${item.image ? 'transparent' : item.color}" aria-hidden="true">${item.image ? `<img src="${item.image}" alt="">` : ''}</i>
@@ -330,6 +403,31 @@ inventoryTabs.addEventListener('click', (event) => {
   renderInventory();
 });
 
+function inventoryQuantityFormMarkup(itemId, actionLabel, modifier = '') {
+  const actionContent = modifier === 'inventory-sale'
+    ? '<span>Продать</span><span data-sale-total>0 $</span>'
+    : actionLabel;
+  return `<form class="inventory-release${modifier ? ` ${modifier}` : ''}" data-item-id="${itemId}" data-release-value="">
+    <output class="inventory-release-display" data-release-display>0</output>
+    <div class="inventory-release-keypad">
+      <button type="button" data-release-digit="1">1</button><button type="button" data-release-digit="2">2</button><button type="button" data-release-digit="3">3</button>
+      <button type="button" data-release-digit="4">4</button><button type="button" data-release-digit="5">5</button><button type="button" data-release-digit="6">6</button>
+      <button type="button" data-release-digit="7">7</button><button type="button" data-release-digit="8">8</button><button type="button" data-release-digit="9">9</button>
+      <button class="inventory-release-clear" type="button" data-release-backspace aria-label="Удалить последнюю цифру">C</button><button type="button" data-release-digit="0">0</button><button class="inventory-release-all" type="button" data-release-all>all</button>
+      <button class="inventory-release-confirm" type="submit">${actionContent}</button>
+    </div>
+  </form>`;
+}
+
+function setInventoryQuantityFormValue(form, value) {
+  const nextValue = String(value);
+  form.dataset.releaseValue = nextValue;
+  form.querySelector('[data-release-display]').textContent = nextValue || '0';
+  const saleTotal = form.querySelector('[data-sale-total]');
+  const item = inventoryItems.find((entry) => entry.id === form.dataset.itemId);
+  if (saleTotal && item) saleTotal.textContent = `${formatAmount(Number(nextValue || 0) * item.sellPrice)} $`;
+}
+
 function renderInventoryDetail() {
   const item = inventoryItems.find((entry) => entry.id === selectedInventoryItemId);
   const count = item ? Number(inventory[item.id] ?? 0) : 0;
@@ -339,12 +437,26 @@ function renderInventoryDetail() {
     inventoryDetail.innerHTML = '';
     return;
   }
+  const existingReleaseForm = inventoryDetail.querySelector(`.inventory-release[data-item-id="${item.id}"]`);
+  if (existingReleaseForm) {
+    inventoryDetail.querySelector('.inventory-detail-count').textContent = count;
+    if (Number(existingReleaseForm.dataset.releaseValue) > count) {
+      setInventoryQuantityFormValue(existingReleaseForm, count);
+    }
+    return;
+  }
   inventoryDetail.innerHTML = `
-    <i class="inventory-detail-preview" style="background:${item.image ? 'transparent' : item.color}" aria-hidden="true">${item.image ? `<img src="${item.image}" alt="">` : ''}</i>
+    <button class="inventory-detail-close" type="button" data-inventory-detail-close aria-label="Закрыть детали предмета">×</button>
     <strong>${item.name}</strong>
-    <span>Количество: ${count}</span>
-    ${item.sellPrice > 0
-      ? `<span>Цена: ${formatAmount(item.sellPrice)} $ за шт.</span><button class="inventory-sell" type="button" data-item-id="${item.id}"><span>${formatAmount(count * item.sellPrice)} $</span><span>Продать всё</span></button>`
+    <div class="inventory-detail-item-card${item.sellPrice > 0 ? ' has-price' : ''}">
+      <i class="inventory-detail-preview" style="background:${item.image ? 'transparent' : item.color}" aria-hidden="true">${item.image ? `<img src="${item.image}" alt="">` : ''}</i>
+      <span class="inventory-detail-count">${count}</span>
+      ${item.sellPrice > 0 ? `<span class="inventory-detail-unit-price">${formatAmount(item.sellPrice)} $ за шт.</span>` : ''}
+    </div>
+    ${inventorySource === 'warehouse'
+      ? inventoryQuantityFormMarkup(item.id, 'Выгрузить')
+      : item.sellPrice > 0
+      ? inventoryQuantityFormMarkup(item.id, 'Продать', 'inventory-sale')
       : '<span>Материал на складе</span>'}
   `;
   inventoryDetail.classList.add('is-visible');
@@ -355,10 +467,27 @@ function addToInventory(itemId, amount = 1) {
   renderInventory();
 }
 
-function setInventoryOpen(open) {
+function setInventoryOpen(open, source = 'panel', warehouse = null) {
+  const wasOpen = inventoryPopover.classList.contains('is-open');
+  const previousSource = inventorySource;
+  const previousWarehouse = selectedInventoryWarehouse;
+  if (open) {
+    inventorySource = source;
+    selectedInventoryWarehouse = source === 'warehouse' ? warehouse : null;
+  } else {
+    inventorySource = 'panel';
+    selectedInventoryWarehouse = null;
+  }
   inventoryPopover.classList.toggle('is-open', open);
-  inventoryButton.classList.toggle('is-active', open);
+  inventoryPopover.dataset.source = inventorySource;
+  inventoryPopover.setAttribute('aria-label', inventorySource === 'warehouse' ? 'Инвентарь склада' : 'Инвентарь');
+  inventoryTitle.textContent = inventorySource === 'warehouse' ? 'Склад' : 'Инвентарь';
+  inventoryButton.classList.toggle('is-active', open && inventorySource === 'panel');
   inventoryButton.setAttribute('aria-expanded', String(open));
+  if (wasOpen !== open || previousSource !== inventorySource || previousWarehouse !== selectedInventoryWarehouse) {
+    selectedInventoryItemId = null;
+    renderInventory();
+  }
 }
 
 function setShopOpen(isOpen) {
@@ -387,6 +516,7 @@ function discardDraftBuildings() {
   const refund = [...draftBuildings.values()].reduce((sum, building) => sum + Number(building.dataset.cost ?? 0), 0);
   draftBuildings.forEach((building) => building.remove());
   draftBuildings.clear();
+  refreshBuildingConnections();
   if (refund) setMoney(getMoney() + refund);
   finishPlacement();
 }
@@ -470,6 +600,16 @@ function renderConveyor(building) {
   graphic.style.transform = `rotate(${Number(building.dataset.conveyorVisualRotation ?? building.dataset.rotation ?? 0)}deg)`;
 }
 
+function refreshBuildingConnections() {
+  const allBuildings = new Map([...buildings, ...draftBuildings]);
+  allBuildings.forEach((building) => {
+    if (!building.classList.contains('building--has-active-side')) return;
+    const [x, y] = building.dataset.cellKey.split(':').map(Number);
+    const target = cellNextTo({ x, y }, building.dataset.activeSide ?? 'bottom');
+    building.dataset.isOutputConnected = String(allBuildings.has(`${target.x}:${target.y}`));
+  });
+}
+
 function refreshConveyors() {
   const allBuildings = [...buildings.values(), ...draftBuildings.values()];
   const allConveyors = allBuildings
@@ -481,6 +621,7 @@ function refreshConveyors() {
     building.dataset.conveyorVisualRotation = String(Number(building.dataset.rotation ?? 0));
     renderConveyor(building);
   });
+  refreshBuildingConnections();
 }
 
 function rotationForDirection(from, to) {
@@ -527,12 +668,14 @@ function createBuilding(product, cell, options = {}) {
     building.classList.add('building--has-active-side');
     building.dataset.activeSide = activeSide;
     building.dataset.activeState = 'ready';
+    building.dataset.isOutputConnected = 'false';
   }
   building.dataset.productId = product.id;
   building.dataset.cellKey = key;
   building.dataset.rotation = String(rotation);
   building.dataset.level = String(level);
   building.dataset.cost = String(cost);
+  if (product.id === 'drill') building.dataset.isEnabled = 'true';
   if (product.id === 'conveyor') building.dataset.conveyorShape = 'straight';
   if (product.id === 'filter') {
     building.dataset.filterMode = '1';
@@ -558,13 +701,20 @@ function createBuilding(product, cell, options = {}) {
       ? `<img src="${product.image}" alt="${product.name}" draggable="false" />`
       : `<span style="background:${product.color}"></span>`;
   const graphic = building.querySelector('img, span');
-  if (graphic) graphic.style.transform = `rotate(${rotation + (product.defaultRotation ?? 0)}deg)`;
+  if (graphic) {
+    const graphicRotation = building.classList.contains('building--has-active-side')
+      ? product.defaultRotation ?? 0
+      : rotation + (product.defaultRotation ?? 0);
+    graphic.style.transform = `rotate(${graphicRotation}deg)`;
+  }
   world.append(building);
   if (product.id === 'conveyor') renderConveyor(building);
   return building;
 }
 
 function clearGameState() {
+  warehouseEmissionQueues.forEach((state) => window.clearTimeout(state.timerId));
+  warehouseEmissionQueues.clear();
   movingResources.forEach((resource) => resource.element.remove());
   movingResources.clear();
   buildings.forEach((building) => building.remove());
@@ -609,6 +759,7 @@ function restoreGameState(savedState = null, replaceCurrent = false) {
       cost: savedBuilding.cost == null ? product.price : Number(savedBuilding.cost) || 0,
     });
     (savedBuilding.isDraft ? draftBuildings : buildings).set(building.dataset.cellKey, building);
+    if (product.id === 'drill') building.dataset.isEnabled = String(savedBuilding.isEnabled !== false);
     if (product.id === 'crusher') {
       if (savedBuilding.crusherInputId) building.dataset.crusherInputId = savedBuilding.crusherInputId;
       if (savedBuilding.crusherInputCount) building.dataset.crusherInputCount = String(savedBuilding.crusherInputCount);
@@ -701,8 +852,7 @@ function pickDrillResource(level) {
   return pickCalculatedDrillResource(level, drillResources, MAX_DRILL_LEVEL);
 }
 
-function getResourcePoint(cell, entryFrom = null) {
-  const entryOffset = 0.08;
+function getResourcePoint(cell, entryFrom = null, entryOffset = 0.08) {
   let offsetX = 0.5;
   let offsetY = 0.5;
   if (entryFrom === 'left') offsetX = entryOffset;
@@ -712,8 +862,8 @@ function getResourcePoint(cell, entryFrom = null) {
   return { x: cell.x + offsetX, y: cell.y + offsetY };
 }
 
-function setResourcePosition(resource, cell, entryFrom = null) {
-  const point = getResourcePoint(cell, entryFrom);
+function setResourcePosition(resource, cell, entryFrom = null, entryOffset = 0.08) {
+  const point = getResourcePoint(cell, entryFrom, entryOffset);
   resource.element.style.left = `${(point.x / MAP_SIZE) * 100}%`;
   resource.element.style.top = `${(point.y / MAP_SIZE) * 100}%`;
 }
@@ -766,20 +916,95 @@ function emitResource(resourceType, source, side) {
   advanceResource(resource, target);
 }
 
-function removeResource(resource) {
-  if (resource.animationFrame) window.cancelAnimationFrame(resource.animationFrame);
-  resource.element.style.opacity = '0';
-  movingResources.delete(resource);
-  addToInventory('trash');
-  saveGameState();
-  window.setTimeout(() => resource.element.remove(), 160);
+function clearWarehouseEmissionQueue(warehouse) {
+  const state = warehouseEmissionQueues.get(warehouse);
+  if (state?.timerId) window.clearTimeout(state.timerId);
+  warehouseEmissionQueues.delete(warehouse);
 }
 
-function moveResourceTo(resource, cell, onArrival, stopAtEntry = false) {
+function scheduleWarehouseEmission(warehouse) {
+  const state = warehouseEmissionQueues.get(warehouse);
+  if (!state || state.timerId) return;
+  state.timerId = window.setTimeout(() => {
+    state.timerId = null;
+    processWarehouseEmission(warehouse);
+  }, WAREHOUSE_EMISSION_MS);
+}
+
+function processWarehouseEmission(warehouse) {
+  const state = warehouseEmissionQueues.get(warehouse);
+  if (!state || buildings.get(warehouse.dataset.cellKey) !== warehouse) {
+    clearWarehouseEmissionQueue(warehouse);
+    return;
+  }
+
+  while (state.items.length && (state.items[0].remaining <= 0 || Number(inventory[state.items[0].itemId] ?? 0) <= 0)) {
+    state.items.shift();
+  }
+  const task = state.items[0];
+  if (!task) {
+    clearWarehouseEmissionQueue(warehouse);
+    return;
+  }
+
+  const resourceType = inventoryItems.find((item) => item.id === task.itemId);
+  const [x, y] = warehouse.dataset.cellKey.split(':').map(Number);
+  const source = { x, y };
+  const side = warehouse.dataset.activeSide ?? 'bottom';
+  const target = cellNextTo(source, side);
+  const conveyor = isCellOnMap(target) ? getConfirmedConveyorAt(target) : null;
+  if (resourceType && conveyor && !isConveyorFull(target, null)) {
+    inventory[task.itemId] = Number(inventory[task.itemId] ?? 0) - 1;
+    task.remaining -= 1;
+    emitResource(resourceType, source, side);
+    renderInventory();
+    saveGameState();
+  }
+  scheduleWarehouseEmission(warehouse);
+}
+
+function enqueueWarehouseEmission(warehouse, itemId, quantity) {
+  let state = warehouseEmissionQueues.get(warehouse);
+  if (!state) {
+    state = { items: [], timerId: null };
+    warehouseEmissionQueues.set(warehouse, state);
+  }
+  state.items.push({ itemId, remaining: quantity });
+  scheduleWarehouseEmission(warehouse);
+}
+
+function showTrashEffect(resource) {
+  const point = resource.renderPosition ?? getResourcePoint(resource.cell, resource.positionSide);
+  const mapRect = map.getBoundingClientRect();
+  const worldRect = world.getBoundingClientRect();
+  const effect = document.createElement('div');
+  effect.className = 'trash-effect';
+  effect.style.left = `${worldRect.left - mapRect.left + (point.x / MAP_SIZE) * worldRect.width}px`;
+  effect.style.top = `${worldRect.top - mapRect.top + (point.y / MAP_SIZE) * worldRect.height}px`;
+  effect.innerHTML = '<img src="assets/resources/trash.png" alt=""><span>+1</span>';
+  map.append(effect);
+  window.setTimeout(() => effect.remove(), 560);
+}
+
+function removeResource(resource) {
+  if (resource.isBeingRemoved) return;
+  if (resource.animationFrame) window.cancelAnimationFrame(resource.animationFrame);
+  resource.isBeingRemoved = true;
+  resource.element.classList.add('factory-item--destroyed');
+  showTrashEffect(resource);
+  addToInventory('trash');
+  saveGameState();
+  window.setTimeout(() => {
+    movingResources.delete(resource);
+    resource.element.remove();
+  }, 180);
+}
+
+function moveResourceTo(resource, cell, onArrival, stopAtEntry = false, entryOffset = 0.08) {
   const travelDirection = sideToward(resource.cell, cell);
   const entryFrom = stopAtEntry ? oppositeSide(travelDirection) : null;
   const from = getResourcePoint(resource.cell, resource.positionSide);
-  const to = getResourcePoint(cell, entryFrom);
+  const to = getResourcePoint(cell, entryFrom, entryOffset);
   const distance = Math.hypot(to.x - from.x, to.y - from.y);
   const duration = Math.max(80, Math.round(CONVEYOR_TRAVEL_MS * distance));
   let completed = false;
@@ -807,14 +1032,14 @@ function moveResourceTo(resource, cell, onArrival, stopAtEntry = false) {
     resource.animationFrame = null;
     finishMove();
   };
-  setResourcePosition(resource, cell, entryFrom);
+  setResourcePosition(resource, cell, entryFrom, entryOffset);
   resource.positionSide = entryFrom;
   resource.lastDirection = travelDirection;
   resource.animationFrame = window.requestAnimationFrame(animate);
 }
 
 function isConveyorFull(cell, resource) {
-  return [...movingResources].filter((item) => item !== resource
+  return [...movingResources].filter((item) => item !== resource && !item.isBeingRemoved
     && item.cell?.x === cell.x
     && item.cell?.y === cell.y).length >= MAX_CONVEYOR_ITEMS;
 }
@@ -905,15 +1130,16 @@ function acceptPressResource(resource, press, fromCell) {
 }
 
 function getMetalFormerRecipe(metalFormer) {
-  const output = gearResources.find((item) => item.id === metalFormer.dataset.metalFormerRecipeId);
+  const output = [...gearResources, ...bearingResources].find((item) => item.id === metalFormer.dataset.metalFormerRecipeId);
   if (!output) return null;
   const level = Number(metalFormer.dataset.level ?? 1);
-  if (gearResources.indexOf(output) >= getAvailableMetalFormerGearCount(level)) return null;
-  const input = smeltedResources.find((item) => item.id === output.id.replace('-gear', '-ingot'));
+  const recipeResources = output.id.endsWith('-bearing') ? bearingResources : gearResources;
+  if (recipeResources.indexOf(output) >= getAvailableMetalFormerMaterialCount(level)) return null;
+  const input = smeltedResources[recipeResources.indexOf(output)];
   return input ? { input, output } : null;
 }
 
-function getAvailableMetalFormerGearCount(level) {
+function getAvailableMetalFormerMaterialCount(level) {
   return level >= MAX_METAL_FORMER_LEVEL ? gearResources.length : Math.min(gearResources.length - 1, level);
 }
 
@@ -1037,6 +1263,10 @@ function arriveAtCell(resource, cell) {
     acceptMetalFormerResource(resource, crusher, resource.cell);
     return;
   }
+  if (crusher?.classList.contains('building--former') || crusher?.classList.contains('building--component-assembler')) {
+    removeResource(resource);
+    return;
+  }
   if (crusher?.classList.contains('building--warehouse')) {
     acceptWarehouseResource(resource, crusher, resource.cell);
     return;
@@ -1059,11 +1289,11 @@ function advanceResource(resource, cell) {
     return;
   }
   const target = cellNextTo(cell, directionForRotation(conveyor.dataset.rotation ?? 0));
-  if (!isCellOnMap(target)) {
-    removeResource(resource);
+  const targetBuilding = isCellOnMap(target) ? buildings.get(`${target.x}:${target.y}`) : null;
+  if (!targetBuilding) {
+    moveResourceTo(resource, target, () => removeResource(resource), true, 0);
     return;
   }
-  const targetBuilding = buildings.get(`${target.x}:${target.y}`);
   const targetIsMachine = targetBuilding && !targetBuilding.classList.contains('building--conveyor');
   moveResourceTo(resource, target, () => arriveAtCell(resource, target), Boolean(targetIsMachine));
 }
@@ -1197,6 +1427,10 @@ function runDrills() {
   [...buildings.values()]
     .filter((building) => building.classList.contains('building--drill'))
     .forEach((drill) => {
+      if (drill.dataset.isEnabled === 'false') {
+        delete drill.dataset.nextProductionAt;
+        return;
+      }
       const interval = getDrillInterval(Number(drill.dataset.level ?? 1));
       const nextProductionAt = Number(drill.dataset.nextProductionAt);
       if (!nextProductionAt) {
@@ -1217,9 +1451,14 @@ function openDrillMenu(drill) {
   closeMetalFormerMenu();
   selectedDrill = drill;
   const level = Number(drill.dataset.level ?? 1);
+  const isEnabled = drill.dataset.isEnabled !== 'false';
   const upgradeCost = getUpgradeCost(drill, DRILL_UPGRADE_COEFFICIENT);
-  machineLevel.textContent = `Уровень ${level} из ${MAX_DRILL_LEVEL}`;
-  machineRate.textContent = formatProductionRate(level);
+  machineLevel.textContent = `${level} ур.`;
+  machineRate.textContent = isEnabled ? `${formatAmount(getDrillInterval(level) / 1000)} сек.` : 'Остановлен';
+  machineMenu.classList.toggle('is-disabled', !isEnabled);
+  machineToggle.classList.toggle('is-active', isEnabled);
+  machineToggle.setAttribute('aria-pressed', String(isEnabled));
+  machineToggle.setAttribute('aria-label', isEnabled ? 'Выключить бур' : 'Включить бур');
   machineDropList.innerHTML = getDrillChances(level).map((resource) => `
     <div class="machine-drop">
       <i class="resource-swatch" style="background:${resource.color}" aria-hidden="true">${resource.image ? `<img src="${resource.image}" alt="">` : ''}</i>
@@ -1227,10 +1466,7 @@ function openDrillMenu(drill) {
       <b>${resource.chance}%</b>
     </div>
   `).join('');
-  machineUpgrade.textContent = level >= MAX_DRILL_LEVEL
-    ? 'Максимальный уровень'
-    : `Улучшить · ${formatAmount(upgradeCost)} $`;
-  machineUpgrade.disabled = level >= MAX_DRILL_LEVEL || getMoney() < upgradeCost;
+  renderCompactUpgrade(machineUpgrade, level, MAX_DRILL_LEVEL, upgradeCost, 'бур');
   machineMenu.classList.add('is-visible');
 }
 
@@ -1249,8 +1485,8 @@ function renderCrusherMenu(crusher) {
   const interval = getCrusherInterval(level);
   const nextProcessAt = Number(crusher.dataset.crusherNextProcessAt ?? 0);
   const progress = nextProcessAt ? Math.max(0, Math.min(1, 1 - ((nextProcessAt - Date.now()) / interval))) : 0;
-  crusherLevel.textContent = `Уровень ${level} из ${MAX_CRUSHER_LEVEL}`;
-  crusherRate.textContent = formatCrusherRate(level);
+  crusherLevel.textContent = `${level} ур.`;
+  crusherRate.textContent = `${formatAmount(interval / 1000)} сек.`;
   crusherInputIcon.style.background = input?.color ?? '#dfe4e8';
   crusherInputIcon.innerHTML = input?.image ? `<img src="${input.image}" alt="">` : '';
   crusherInputName.textContent = input?.name ?? 'Нет руды';
@@ -1260,12 +1496,7 @@ function renderCrusherMenu(crusher) {
   crusherOutputName.textContent = output?.name ?? '—';
   crusherOutputCount.textContent = output ? String(count * 2) : '0';
   crusherArrowProgress.style.width = `${progress * 100}%`;
-  const available = getCrusherResources(level).map((resource) => resource.name).join(', ');
-  crusherAvailable.textContent = available ? `Принимает: ${available}` : 'На этом уровне ещё не принимает руду.';
-  crusherUpgrade.textContent = level >= MAX_CRUSHER_LEVEL
-    ? 'Максимальный уровень'
-    : `Улучшить · ${formatAmount(upgradeCost)} $`;
-  crusherUpgrade.disabled = level >= MAX_CRUSHER_LEVEL || getMoney() < upgradeCost;
+  renderCompactUpgrade(crusherUpgrade, level, MAX_CRUSHER_LEVEL, upgradeCost, 'дробилку');
 }
 
 function openCrusherMenu(crusher) {
@@ -1361,7 +1592,7 @@ filterItems.addEventListener('click', (event) => {
 
 function renderFilterPicker() {
   const selectedIds = (selectedFilter.dataset.filterItemIds ?? '').split(',').filter(Boolean);
-  const items = filterPickerTab === 'ores' ? drillResources : filterPickerTab === 'powders' ? crushedResources : filterPickerTab === 'ingots' ? smeltedResources : filterPickerTab === 'components' ? [...pressedResources, ...gearResources] : inventoryItems.filter((item) => item.id !== 'trash');
+  const items = filterPickerTab === 'ores' ? drillResources : filterPickerTab === 'powders' ? crushedResources : filterPickerTab === 'ingots' ? smeltedResources : filterPickerTab === 'components' ? [...pressedResources, ...gearResources, ...bearingResources] : inventoryItems.filter((item) => item.id !== 'trash');
   filterPickerTabs.innerHTML = [['all','Всё'],['ores','Руда'],['powders','Порошки'],['ingots','Слитки'],['components','Компоненты']].map(([id,label]) => `<button type="button" data-filter-tab="${id}" class="${filterPickerTab === id ? 'is-active' : ''}">${label}</button>`).join('');
   filterPicker.innerHTML = `<button type="button" class="filter-picker-clear" data-resource-id="">Очистить ячейку</button>${items.map((item) => `<button type="button" data-resource-id="${item.id}" class="${selectedIds.includes(item.id) ? 'is-selected' : ''}">${item.image ? `<img src="${item.image}" alt="">` : ''}<span>${item.name}</span></button>`).join('')}`;
 }
@@ -1401,21 +1632,18 @@ function renderFurnaceMenu(furnace) {
   const interval = getFurnaceInterval(level);
   const nextProcessAt = Number(furnace.dataset.furnaceNextProcessAt ?? 0);
   const progress = nextProcessAt ? Math.max(0, Math.min(1, 1 - ((nextProcessAt - Date.now()) / interval))) : 0;
-  furnaceLevel.textContent = `Уровень ${level} из ${MAX_FURNACE_LEVEL}`;
-  furnaceRate.textContent = formatFurnaceRate(level);
+  furnaceLevel.textContent = `${level} ур.`;
+  furnaceRate.textContent = `${formatAmount(interval / 1000)} сек.`;
   furnaceInputIcon.style.background = input?.color ?? '#dfe4e8';
+  furnaceInputIcon.innerHTML = input?.image ? `<img src="${input.image}" alt="">` : '';
   furnaceInputName.textContent = input?.name ?? 'Нет порошка';
   furnaceInputCount.textContent = String(count);
   furnaceOutputIcon.style.background = output?.color ?? '#dfe4e8';
+  furnaceOutputIcon.innerHTML = output?.image ? `<img src="${output.image}" alt="">` : '';
   furnaceOutputName.textContent = output?.name ?? '—';
   furnaceOutputCount.textContent = output ? String(count) : '0';
   furnaceArrowProgress.style.width = `${progress * 100}%`;
-  const available = getFurnaceResources(level).map((resource) => resource.name).join(', ');
-  furnaceAvailable.textContent = available ? `Принимает: ${available}` : 'На этом уровне ещё не принимает порошок.';
-  furnaceUpgrade.textContent = level >= MAX_FURNACE_LEVEL
-    ? 'Максимальный уровень'
-    : `Улучшить · ${formatAmount(upgradeCost)} $`;
-  furnaceUpgrade.disabled = level >= MAX_FURNACE_LEVEL || getMoney() < upgradeCost;
+  renderCompactUpgrade(furnaceUpgrade, level, MAX_FURNACE_LEVEL, upgradeCost, 'печь');
 }
 
 function openFurnaceMenu(furnace) {
@@ -1433,29 +1661,46 @@ function openPressMenu(press) {
   selectedPress = press;
   const level = Number(press.dataset.level ?? 1), input = getResourceType(press.dataset.pressInputId);
   const output = input && pressedResources.find((item) => item.id === input.id.replace('-ingot', '-plate'));
-  pressLevel.textContent = `Уровень ${level} из ${MAX_FURNACE_LEVEL}`;
-  pressRate.textContent = formatFurnaceRate(level).replace('Переплавка', 'Прессовка');
+  const interval = getFurnaceInterval(level), next = Number(press.dataset.pressNextProcessAt ?? 0);
+  pressLevel.textContent = `${level} ур.`;
+  pressRate.textContent = `${formatAmount(interval / 1000)} сек.`;
+  pressInputIcon.style.background = input?.color ?? '#dfe4e8';
+  pressInputIcon.innerHTML = input?.image ? `<img src="${input.image}" alt="">` : '';
+  pressOutputIcon.style.background = output?.color ?? '#dfe4e8';
+  pressOutputIcon.innerHTML = output?.image ? `<img src="${output.image}" alt="">` : '';
   pressInputName.textContent = input?.name ?? 'Нет слитка'; pressInputCount.textContent = String(Number(press.dataset.pressInputCount ?? 0));
   pressOutputName.textContent = output?.name ?? '—'; pressOutputCount.textContent = output ? pressInputCount.textContent : '0';
-  const interval = getFurnaceInterval(level), next = Number(press.dataset.pressNextProcessAt ?? 0);
   pressArrowProgress.style.width = `${next ? Math.max(0, Math.min(100, (1 - (next - Date.now()) / interval) * 100)) : 0}%`;
-  pressAvailable.textContent = `Принимает: ${smeltedResources.slice(0, level).map((item) => item.name).join(', ')}`;
   const upgradeCost = getUpgradeCost(press, PRESS_UPGRADE_COEFFICIENT);
-  pressUpgrade.textContent = level >= MAX_FURNACE_LEVEL ? 'Максимальный уровень' : `Улучшить · ${formatAmount(upgradeCost)} $`;
-  pressUpgrade.disabled = level >= MAX_FURNACE_LEVEL || getMoney() < upgradeCost;
+  renderCompactUpgrade(pressUpgrade, level, MAX_FURNACE_LEVEL, upgradeCost, 'пресс');
   pressMenu.classList.add('is-visible');
 }
 
 function renderMetalFormerRecipes(metalFormer) {
   const level = Number(metalFormer.dataset.level ?? 1);
-  const availableGearCount = getAvailableMetalFormerGearCount(level);
-  metalFormerRecipes.innerHTML = gearResources.map((gear) => {
-    const input = smeltedResources.find((item) => item.id === gear.id.replace('-gear', '-ingot'));
-    const isLocked = gearResources.indexOf(gear) >= availableGearCount;
-    return `<button type="button" data-recipe-id="${gear.id}" class="${metalFormer.dataset.metalFormerRecipeId === gear.id ? 'is-selected' : ''}" ${isLocked ? 'disabled' : ''}>
-      <img src="${gear.image}" alt=""><span>${gear.name}<small>1 × ${input?.name ?? 'слиток'}</small></span>
+  const availableMaterialCount = getAvailableMetalFormerMaterialCount(level);
+  if (!selectedMetalFormerRecipeType) {
+    const selectedRecipe = getMetalFormerRecipe(metalFormer);
+    const selectedRecipeType = selectedRecipe?.output.id.endsWith('-bearing') ? 'bearing' : selectedRecipe ? 'gear' : null;
+    metalFormerRecipes.innerHTML = `<button type="button" class="metal-former-recipes-back" data-recipe-close>← Производство</button>${[
+      { id: 'gear', name: 'Шестерёнки', image: gearResources[0].image, enabled: true, selected: selectedRecipeType === 'gear' },
+      { id: 'bearing', name: 'Подшипники', image: bearingResources[0].image, enabled: true, selected: selectedRecipeType === 'bearing' },
+      { id: 'rod', name: 'Стержни', enabled: false },
+      { id: 'wire', name: 'Провода', enabled: false },
+    ].map((type) => `<button type="button" data-recipe-type="${type.id}" class="${type.selected ? 'is-selected' : ''}" ${type.enabled ? '' : 'disabled'}>
+      ${type.image ? `<img src="${type.image}" alt="">` : ''}<span>${type.name}${type.selected ? `<small>Выбрано: ${selectedRecipe.output.name}</small>` : type.enabled ? '<small>Выбрать материал</small>' : '<small>Будет добавлено позже</small>'}</span>
+    </button>`).join('')}`;
+    return;
+  }
+
+  const recipeResources = selectedMetalFormerRecipeType === 'bearing' ? bearingResources : gearResources;
+  metalFormerRecipes.innerHTML = `<button type="button" class="metal-former-recipes-back" data-recipe-back>← Тип рецепта</button>${recipeResources.map((output, index) => {
+    const input = smeltedResources[index];
+    const isLocked = index >= availableMaterialCount;
+    return `<button type="button" data-recipe-id="${output.id}" class="${metalFormer.dataset.metalFormerRecipeId === output.id ? 'is-selected' : ''}" ${isLocked ? 'disabled' : ''}>
+      <img src="${output.image}" alt=""><span>${output.name}<small>1 × ${input?.name ?? 'слиток'}</small></span>
     </button>`;
-  }).join('');
+  }).join('')}`;
 }
 
 function openMetalFormerMenu(metalFormer) {
@@ -1469,12 +1714,11 @@ function openMetalFormerMenu(metalFormer) {
   selectedMetalFormer = metalFormer;
   const recipe = getMetalFormerRecipe(metalFormer);
   const level = Number(metalFormer.dataset.level ?? 1);
-  const availableGearCount = getAvailableMetalFormerGearCount(level);
   const inputCount = Number(metalFormer.dataset.metalFormerInputCount ?? 0);
   const next = Number(metalFormer.dataset.metalFormerNextProcessAt ?? 0);
   const upgradeCost = getUpgradeCost(metalFormer, METAL_FORMER_UPGRADE_COEFFICIENT);
-  metalFormerLevel.textContent = `Уровень ${level} из ${MAX_METAL_FORMER_LEVEL}`;
-  metalFormerRate.textContent = `Изготовление: 1 раз в ${(METAL_FORMER_PROCESS_MS / 1000).toFixed(1).replace('.0', '')} сек.`;
+  metalFormerLevel.textContent = `${level} ур.`;
+  metalFormerRate.textContent = `${(METAL_FORMER_PROCESS_MS / 1000).toFixed(1).replace('.0', '')} сек.`;
   metalFormerInputIcon.style.background = recipe?.input?.image ? `center / contain no-repeat url("${recipe.input.image}")` : '#dfe4e8';
   metalFormerOutputIcon.style.background = recipe?.output?.image ? `center / contain no-repeat url("${recipe.output.image}")` : '#dfe4e8';
   metalFormerInputName.textContent = recipe?.input?.name ?? 'Выберите рецепт';
@@ -1482,21 +1726,69 @@ function openMetalFormerMenu(metalFormer) {
   metalFormerInputCount.textContent = String(inputCount);
   metalFormerOutputCount.textContent = recipe ? String(inputCount) : '0';
   metalFormerArrowProgress.style.width = `${next ? Math.max(0, Math.min(100, (1 - (next - Date.now()) / METAL_FORMER_PROCESS_MS) * 100)) : 0}%`;
-  metalFormerStatus.textContent = recipe
-    ? `Принимает только: ${recipe.input.name}. Другие ресурсы превращаются в мусор.`
-    : `Нажмите на стрелку, чтобы выбрать рецепт. Доступно: ${gearResources.slice(0, availableGearCount).map((item) => item.name).join(', ')}.`;
-  renderMetalFormerRecipes(metalFormer);
-  metalFormerUpgrade.textContent = level >= MAX_METAL_FORMER_LEVEL
-    ? 'Максимальный уровень'
-    : `Улучшить · ${formatAmount(upgradeCost)} $`;
-  metalFormerUpgrade.disabled = level >= MAX_METAL_FORMER_LEVEL || getMoney() < upgradeCost;
+  if (!metalFormerRecipes.classList.contains('is-visible')) {
+    renderMetalFormerRecipes(metalFormer);
+  }
+  renderCompactUpgrade(metalFormerUpgrade, level, MAX_METAL_FORMER_LEVEL, upgradeCost, 'металлоформовщик');
   metalFormerMenu.classList.add('is-visible');
 }
 
 function closeMetalFormerMenu() {
   metalFormerMenu.classList.remove('is-visible');
+  metalFormerMenu.classList.remove('metal-former-menu--recipe-view');
   metalFormerRecipes.classList.remove('is-visible');
   selectedMetalFormer = null;
+  selectedMetalFormerRecipeType = null;
+}
+
+function getRecipeMachineDefinition(machine) {
+  return RECIPE_MACHINE_DEFINITIONS[machine?.dataset.productId] ?? null;
+}
+
+function renderRecipeMachineRecipes(machine) {
+  const definition = getRecipeMachineDefinition(machine);
+  if (!definition) return;
+  if (!selectedRecipeMachineCategory) {
+    recipeMachineRecipes.innerHTML = `<button type="button" class="metal-former-recipes-back" data-generic-recipe-close>← Производство</button>${definition.categories.map((category) => `
+      <button type="button" data-generic-recipe-category="${category.id}"><span>${category.name}<small>Выбрать рецепт</small></span></button>
+    `).join('')}`;
+    return;
+  }
+  const category = definition.categories.find((item) => item.id === selectedRecipeMachineCategory);
+  recipeMachineRecipes.innerHTML = `
+    <button type="button" class="metal-former-recipes-back" data-generic-recipe-back>← Тип рецепта</button>
+    <p class="recipe-machine-empty">Рецепты «${category?.name ?? ''}» будут добавлены вместе с ресурсами.</p>
+  `;
+}
+
+function openRecipeMachineMenu(machine) {
+  closeMachineMenu();
+  closeCrusherMenu();
+  closeFurnaceMenu();
+  closeFilterMenu();
+  closeDistributorMenu();
+  closeMetalFormerMenu();
+  pressMenu.classList.remove('is-visible');
+  selectedPress = null;
+  selectedRecipeMachine = machine;
+  const definition = getRecipeMachineDefinition(machine);
+  if (!definition) return;
+  const level = Number(machine.dataset.level ?? 1);
+  const upgradeCost = getUpgradeCost(machine, definition.upgradeCoefficient);
+  recipeMachineTitle.textContent = definition.name;
+  recipeMachineMenu.setAttribute('aria-label', `Меню: ${definition.name}`);
+  recipeMachineLevel.textContent = `${level} ур.`;
+  recipeMachineRate.textContent = `${formatAmount(definition.processMs / 1000)} сек.`;
+  renderCompactUpgrade(recipeMachineUpgrade, level, machines.maxLevel, upgradeCost, definition.name.toLowerCase());
+  if (!recipeMachineRecipes.classList.contains('is-visible')) renderRecipeMachineRecipes(machine);
+  recipeMachineMenu.classList.add('is-visible');
+}
+
+function closeRecipeMachineMenu() {
+  recipeMachineMenu.classList.remove('is-visible', 'metal-former-menu--recipe-view');
+  recipeMachineRecipes.classList.remove('is-visible');
+  selectedRecipeMachine = null;
+  selectedRecipeMachineCategory = null;
 }
 
 pressUpgrade.addEventListener('click', () => {
@@ -1563,9 +1855,11 @@ function confirmDeletion() {
     0,
   );
   buildingsMarkedForDeletion.forEach((building) => {
+    clearWarehouseEmissionQueue(building);
     buildings.delete(building.dataset.cellKey);
     building.remove();
   });
+  refreshConveyors();
   if (refund) setMoney(getMoney() + refund);
   setDeleteMode(false);
   placementMenu.classList.remove('is-visible');
@@ -1598,7 +1892,9 @@ function rotateBuilding(building) {
   building.style.transform = '';
   const graphic = building.querySelector('img, span');
   const product = products.find((item) => item.id === building.dataset.productId);
-  if (graphic) graphic.style.transform = `rotate(${nextRotation + (product?.defaultRotation ?? 0)}deg)`;
+  if (graphic && !building.classList.contains('building--has-active-side')) {
+    graphic.style.transform = `rotate(${nextRotation + (product?.defaultRotation ?? 0)}deg)`;
+  }
 
   if (building.classList.contains('building--has-active-side')) {
     const sides = ['bottom', 'left', 'top', 'right'];
@@ -1606,6 +1902,7 @@ function rotateBuilding(building) {
   }
 
   if (building.classList.contains('building--conveyor')) refreshConveyors();
+  else refreshBuildingConnections();
   saveGameState();
 }
 
@@ -1679,6 +1976,18 @@ function renderCamera() {
 
 map.addEventListener('pointerdown', (event) => {
   if (event.button !== 0) return;
+  activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  map.setPointerCapture(event.pointerId);
+  if (activePointers.size === 2) {
+    const [first, second] = [...activePointers.values()];
+    pinchStart = {
+      distance: Math.hypot(second.x - first.x, second.y - first.y),
+      scale: camera.scale,
+    };
+    pointerStart = null;
+    map.classList.remove('is-panning');
+    return;
+  }
   setInventoryOpen(false);
   const building = event.target.closest('.building');
   if (deleteMode && building && !building.classList.contains('building--draft')) {
@@ -1703,6 +2012,7 @@ map.addEventListener('pointerdown', (event) => {
     selectBuildingForMove(building);
     return;
   }
+  if (selectedRecipeMachine && building !== selectedRecipeMachine) closeRecipeMachineMenu();
   if (building?.classList.contains('building--drill') && !selectedProduct && !draftBuildings.size) {
     openDrillMenu(building);
     return;
@@ -1717,9 +2027,11 @@ map.addEventListener('pointerdown', (event) => {
   }
   if (building?.classList.contains('building--press') && !selectedProduct && !draftBuildings.size) { openPressMenu(building); return; }
   if (building?.classList.contains('building--metal-former') && !selectedProduct && !draftBuildings.size) { openMetalFormerMenu(building); return; }
+  if ((building?.classList.contains('building--former') || building?.classList.contains('building--component-assembler'))
+    && !selectedProduct && !draftBuildings.size) { openRecipeMachineMenu(building); return; }
   if (building?.classList.contains('building--warehouse') && !selectedProduct && !draftBuildings.size) {
     setShopOpen(false);
-    setInventoryOpen(true);
+    setInventoryOpen(true, 'warehouse', building);
     return;
   }
   if (building?.classList.contains('building--filter') && !selectedProduct && !draftBuildings.size) {
@@ -1738,12 +2050,23 @@ map.addEventListener('pointerdown', (event) => {
   pressMenu.classList.remove('is-visible');
   selectedPress = null;
   closeMetalFormerMenu();
+  closeRecipeMachineMenu();
   pointerStart = { x: event.clientX, y: event.clientY, cameraX: camera.x, cameraY: camera.y };
   map.classList.add('is-panning');
-  map.setPointerCapture(event.pointerId);
 });
 
 map.addEventListener('pointermove', (event) => {
+  if (activePointers.has(event.pointerId)) {
+    activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  }
+  if (pinchStart && activePointers.size >= 2) {
+    const [first, second] = [...activePointers.values()];
+    const distance = Math.hypot(second.x - first.x, second.y - first.y);
+    camera.scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinchStart.scale * (distance / Math.max(1, pinchStart.distance))));
+    cameraScaleWasAdjusted = true;
+    renderCamera();
+    return;
+  }
   if (pointerStart) {
     camera.x = pointerStart.cameraX + event.clientX - pointerStart.x;
     camera.y = pointerStart.cameraY + event.clientY - pointerStart.y;
@@ -1757,6 +2080,14 @@ map.addEventListener('pointerleave', () => {
 });
 
 function stopPanning(event) {
+  const wasPinching = Boolean(pinchStart);
+  activePointers.delete(event.pointerId);
+  if (wasPinching) {
+    if (activePointers.size < 2) pinchStart = null;
+    pointerStart = null;
+    map.classList.remove('is-panning');
+    return;
+  }
   const start = pointerStart;
   pointerStart = null;
   map.classList.remove('is-panning');
@@ -1784,6 +2115,8 @@ function stopPanning(event) {
 map.addEventListener('pointerup', stopPanning);
 map.addEventListener('dragstart', (event) => event.preventDefault());
 map.addEventListener('pointercancel', () => {
+  activePointers.clear();
+  pinchStart = null;
   pointerStart = null;
   map.classList.remove('is-panning');
 });
@@ -1792,11 +2125,20 @@ map.addEventListener('wheel', (event) => {
   event.preventDefault();
   const nextScale = camera.scale * (event.deltaY > 0 ? 0.9 : 1.1);
   camera.scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, nextScale));
+  cameraScaleWasAdjusted = true;
   renderCamera();
 }, { passive: false });
 
-window.addEventListener('resize', renderCamera);
+window.addEventListener('resize', () => {
+  if (!cameraScaleWasAdjusted) {
+    camera.scale = getFittedCameraScale();
+    camera.x = 0;
+    camera.y = 0;
+  }
+  renderCamera();
+});
 
+renderCamera();
 restoreGameState();
 renderResources();
 renderShop();
@@ -1825,7 +2167,14 @@ rotateButton.addEventListener('click', () => {
 
 inventoryButton.addEventListener('click', () => {
   setShopOpen(false);
-  setInventoryOpen(!inventoryPopover.classList.contains('is-open'));
+  const isPanelInventoryOpen = inventoryPopover.classList.contains('is-open') && inventorySource === 'panel';
+  setInventoryOpen(!isPanelInventoryOpen, 'panel');
+});
+
+inventoryPopover.addEventListener('pointerdown', (event) => {
+  if (!inventoryDetail.classList.contains('is-visible') || inventoryDetail.contains(event.target)) return;
+  selectedInventoryItemId = null;
+  renderInventoryDetail();
 });
 
 inventoryGrid.addEventListener('click', (event) => {
@@ -1840,16 +2189,53 @@ inventoryGrid.addEventListener('click', (event) => {
 });
 
 inventoryDetail.addEventListener('click', (event) => {
-  const sellButton = event.target.closest('[data-item-id]');
-  if (!sellButton) return;
-  const item = inventoryItems.find((entry) => entry.id === sellButton.dataset.itemId);
-  const count = item ? Number(inventory[item.id] ?? 0) : 0;
-  if (!item || count <= 0) return;
-  inventory[item.id] = 0;
+  if (event.target.closest('[data-inventory-detail-close]')) {
+    selectedInventoryItemId = null;
+    renderInventoryDetail();
+    return;
+  }
+  const releaseForm = event.target.closest('.inventory-release[data-item-id]');
+  if (releaseForm) {
+    const digitButton = event.target.closest('[data-release-digit]');
+    const currentValue = releaseForm.dataset.releaseValue ?? '';
+    if (digitButton) {
+      const nextValue = `${currentValue}${digitButton.dataset.releaseDigit}`.replace(/^0+/, '');
+      setInventoryQuantityFormValue(releaseForm, nextValue);
+      return;
+    }
+    if (event.target.closest('[data-release-backspace]')) {
+      const nextValue = currentValue.slice(0, -1);
+      setInventoryQuantityFormValue(releaseForm, nextValue);
+      return;
+    }
+    if (event.target.closest('[data-release-all]')) {
+      const count = Number(inventory[releaseForm.dataset.itemId] ?? 0);
+      setInventoryQuantityFormValue(releaseForm, count);
+      return;
+    }
+  }
+});
+
+inventoryDetail.addEventListener('submit', (event) => {
+  const form = event.target.closest('.inventory-release[data-item-id]');
+  if (!form) return;
+  event.preventDefault();
+  const warehouse = selectedInventoryWarehouse;
+  const count = Number(inventory[form.dataset.itemId] ?? 0);
+  const quantity = Math.floor(Number(form.dataset.releaseValue));
+  if (!Number.isFinite(quantity) || quantity < 1 || quantity > count) return;
+  if (inventorySource === 'warehouse') {
+    if (!warehouse || buildings.get(warehouse.dataset.cellKey) !== warehouse) return;
+    enqueueWarehouseEmission(warehouse, form.dataset.itemId, quantity);
+  } else {
+    const item = inventoryItems.find((entry) => entry.id === form.dataset.itemId);
+    if (!item || item.sellPrice <= 0) return;
+    inventory[item.id] = count - quantity;
+    setMoney(getMoney() + quantity * item.sellPrice);
+    saveGameState();
+  }
   selectedInventoryItemId = null;
-  setMoney(getMoney() + count * item.sellPrice);
   renderInventory();
-  saveGameState();
 });
 
 machineUpgrade.addEventListener('click', () => {
@@ -1860,6 +2246,15 @@ machineUpgrade.addEventListener('click', () => {
   selectedDrill.dataset.level = String(Number(selectedDrill.dataset.level ?? 1) + 1);
   delete selectedDrill.dataset.nextProductionAt;
   setMoney(getMoney() - upgradeCost);
+  openDrillMenu(selectedDrill);
+  saveGameState();
+});
+
+machineToggle.addEventListener('click', () => {
+  if (!selectedDrill || !buildings.has(selectedDrill.dataset.cellKey)) return;
+  const isEnabled = selectedDrill.dataset.isEnabled === 'false';
+  selectedDrill.dataset.isEnabled = String(isEnabled);
+  delete selectedDrill.dataset.nextProductionAt;
   openDrillMenu(selectedDrill);
   saveGameState();
 });
@@ -1888,19 +2283,46 @@ furnaceUpgrade.addEventListener('click', () => {
 
 metalFormerRecipeButton.addEventListener('click', () => {
   if (!selectedMetalFormer) return;
-  metalFormerRecipes.classList.toggle('is-visible');
+  selectedMetalFormerRecipeType = null;
+  renderMetalFormerRecipes(selectedMetalFormer);
+  metalFormerMenu.classList.add('metal-former-menu--recipe-view');
+  metalFormerRecipes.classList.add('is-visible');
 });
 
 metalFormerRecipes.addEventListener('click', (event) => {
+  if (event.target.closest('[data-recipe-close]') && selectedMetalFormer) {
+    selectedMetalFormerRecipeType = null;
+    metalFormerRecipes.classList.remove('is-visible');
+    metalFormerMenu.classList.remove('metal-former-menu--recipe-view');
+    return;
+  }
+  const typeButton = event.target.closest('[data-recipe-type]');
+  if (typeButton && selectedMetalFormer) {
+    selectedMetalFormerRecipeType = typeButton.dataset.recipeType;
+    renderMetalFormerRecipes(selectedMetalFormer);
+    return;
+  }
+  if (event.target.closest('[data-recipe-back]') && selectedMetalFormer) {
+    selectedMetalFormerRecipeType = null;
+    renderMetalFormerRecipes(selectedMetalFormer);
+    return;
+  }
   const recipeButton = event.target.closest('[data-recipe-id]');
   if (!recipeButton || !selectedMetalFormer || !buildings.has(selectedMetalFormer.dataset.cellKey)) return;
   const recipeId = recipeButton.dataset.recipeId;
-  const recipeIndex = gearResources.findIndex((item) => item.id === recipeId);
-  if (recipeIndex < 0 || recipeIndex >= getAvailableMetalFormerGearCount(Number(selectedMetalFormer.dataset.level ?? 1))) return;
+  const recipeResources = selectedMetalFormerRecipeType === 'bearing' ? bearingResources : gearResources;
+  const recipeIndex = recipeResources.findIndex((item) => item.id === recipeId);
+  if (recipeIndex < 0 || recipeIndex >= getAvailableMetalFormerMaterialCount(Number(selectedMetalFormer.dataset.level ?? 1))) return;
+  const previousRecipe = getMetalFormerRecipe(selectedMetalFormer);
+  const nextInput = smeltedResources[recipeIndex];
   selectedMetalFormer.dataset.metalFormerRecipeId = recipeId;
-  selectedMetalFormer.dataset.metalFormerInputCount = '0';
+  if (previousRecipe?.input.id !== nextInput?.id) {
+    selectedMetalFormer.dataset.metalFormerInputCount = '0';
+  }
   delete selectedMetalFormer.dataset.metalFormerNextProcessAt;
+  selectedMetalFormerRecipeType = null;
   metalFormerRecipes.classList.remove('is-visible');
+  metalFormerMenu.classList.remove('metal-former-menu--recipe-view');
   openMetalFormerMenu(selectedMetalFormer);
   saveGameState();
 });
@@ -1913,6 +2335,45 @@ metalFormerUpgrade.addEventListener('click', () => {
   selectedMetalFormer.dataset.level = String(level + 1);
   setMoney(getMoney() - cost);
   openMetalFormerMenu(selectedMetalFormer);
+  saveGameState();
+});
+
+recipeMachineRecipeButton.addEventListener('click', () => {
+  if (!selectedRecipeMachine) return;
+  selectedRecipeMachineCategory = null;
+  renderRecipeMachineRecipes(selectedRecipeMachine);
+  recipeMachineMenu.classList.add('metal-former-menu--recipe-view');
+  recipeMachineRecipes.classList.add('is-visible');
+});
+
+recipeMachineRecipes.addEventListener('click', (event) => {
+  if (event.target.closest('[data-generic-recipe-close]')) {
+    selectedRecipeMachineCategory = null;
+    recipeMachineRecipes.classList.remove('is-visible');
+    recipeMachineMenu.classList.remove('metal-former-menu--recipe-view');
+    return;
+  }
+  const categoryButton = event.target.closest('[data-generic-recipe-category]');
+  if (categoryButton && selectedRecipeMachine) {
+    selectedRecipeMachineCategory = categoryButton.dataset.genericRecipeCategory;
+    renderRecipeMachineRecipes(selectedRecipeMachine);
+    return;
+  }
+  if (event.target.closest('[data-generic-recipe-back]') && selectedRecipeMachine) {
+    selectedRecipeMachineCategory = null;
+    renderRecipeMachineRecipes(selectedRecipeMachine);
+  }
+});
+
+recipeMachineUpgrade.addEventListener('click', () => {
+  const definition = getRecipeMachineDefinition(selectedRecipeMachine);
+  if (!selectedRecipeMachine || !definition || !buildings.has(selectedRecipeMachine.dataset.cellKey)) return;
+  const level = Number(selectedRecipeMachine.dataset.level ?? 1);
+  const cost = getUpgradeCost(selectedRecipeMachine, definition.upgradeCoefficient);
+  if (level >= machines.maxLevel || getMoney() < cost) return;
+  selectedRecipeMachine.dataset.level = String(level + 1);
+  setMoney(getMoney() - cost);
+  openRecipeMachineMenu(selectedRecipeMachine);
   saveGameState();
 });
 
@@ -1972,3 +2433,8 @@ document.addEventListener('pointerdown', (event) => {
   if (!shopPopover.classList.contains('is-open')) return;
   if (!shopPopover.contains(event.target) && !shopButton.contains(event.target)) setShopOpen(false);
 });
+
+document.addEventListener('pointerdown', (event) => {
+  if (!inventoryPopover.classList.contains('is-open')) return;
+  if (!inventoryPopover.contains(event.target) && !inventoryButton.contains(event.target)) setInventoryOpen(false);
+}, true);

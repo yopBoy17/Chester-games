@@ -5,17 +5,20 @@ export const FACTORY_BALANCE = Object.freeze({
     maxItems: 20, // Максимум предметов на одном конвейере.
   },
   resources: {
-    powderDisplaySize: 0.8, // Размер порошка относительно размера клетки.
-    otherDisplaySize: 0.72, // Размер руды и слитков относительно размера порошка.
+    displaySize: 0.65, // Единый размер всех ресурсов на конвейере относительно клетки.
   },
   machines: {
     maxLevel: 9, // Предельный уровень машин.
     drillUpgradeCoefficient: 3.88, // Коэффициент цены улучшения бура.
-    crusherUpgradeCoefficient: 1, // Коэффициент цены улучшения дробилки.
-    furnaceUpgradeCoefficient: 1, // Коэффициент цены улучшения печи.
-    pressUpgradeCoefficient: 1, // Коэффициент цены улучшения пресса.
-    metalFormerUpgradeCoefficient: 1, // Коэффициент цены улучшения металлоформовщика.
+    crusherUpgradeCoefficient: 2.23, // Коэффициент цены улучшения дробилки.
+    furnaceUpgradeCoefficient: 2.23, // Коэффициент цены улучшения печи.
+    pressUpgradeCoefficient: 2.23, // Коэффициент цены улучшения пресса.
+    metalFormerUpgradeCoefficient: 2.23, // Коэффициент цены улучшения металлоформовщика.
     metalFormerProcessMs: 1_400, // Время изготовления одной детали на металлоформовщике, мс.
+    formerUpgradeCoefficient: 2.23, // Коэффициент цены улучшения формовщика.
+    formerProcessMs: 1_400, // Время формовки одной детали, мс.
+    componentAssemblerUpgradeCoefficient: 2.23, // Коэффициент цены улучшения сборщика компонентов.
+    componentAssemblerProcessMs: 1_800, // Время сборки одного компонента, мс.
   },
   products: {
     drill: 20, // Цена бура, $.
@@ -27,6 +30,8 @@ export const FACTORY_BALANCE = Object.freeze({
     crusher: 75, // Цена дробилки, $.
     press: 90, // Цена пресса, $.
     metalFormer: 110, // Цена металлоформовщика, $.
+    former: 125, // Цена формовщика, $.
+    componentAssembler: 175, // Цена сборщика компонентов, $.
     lab: 140, // Цена лаборатории, $.
     generator: 120, // Цена генератора, $.
     terminal: 180, // Цена терминала, $.
@@ -79,5 +84,14 @@ export const FACTORY_BALANCE = Object.freeze({
     'tungsten-gear': 3.1, // Цена продажи единицы вольфрамовой шестерёнки, $.
     'platinum-gear': 4.4, // Цена продажи единицы платиновой шестерёнки, $.
     'diamond-gear': 8.5, // Цена продажи единицы алмазной шестерёнки, $.
+
+    'iron-bearing': 1.5, // Цена продажи единицы железного подшипника, $.
+    'copper-bearing': 1.5, // Цена продажи единицы медного подшипника, $.
+    'tin-bearing': 2.1, // Цена продажи единицы оловянного подшипника, $.
+    'silver-bearing': 2.35, // Цена продажи единицы серебряного подшипника, $.
+    'gold-bearing': 2.65, // Цена продажи единицы золотого подшипника, $.
+    'tungsten-bearing': 3.1, // Цена продажи единицы вольфрамового подшипника, $.
+    'platinum-bearing': 4.4, // Цена продажи единицы платинового подшипника, $.
+    'diamond-bearing': 8.5, // Цена продажи единицы алмазного подшипника, $.
   },
 });

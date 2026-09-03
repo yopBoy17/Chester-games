@@ -1,9 +1,10 @@
-const CACHE_NAME = 'factory-pwa-v1';
+const CACHE_NAME = 'factory-pwa-v3';
 const APP_SHELL = [
   './',
   './index.html',
   './styles.css',
   './factory.js',
+  './update-check.js',
   './manifest.webmanifest',
   './game/config.js',
   './game/balance.js',
@@ -18,7 +19,18 @@ const APP_SHELL = [
   './node_modules/phaser/dist/phaser.min.js',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png',
+  './assets/products/conveyor.png',
+  './assets/products/filters/filter-mode-1.png',
+  './assets/products/filters/filter-mode-2.png',
+  './assets/products/filters/filter-mode-3.png',
+  './assets/products/distributors/distributor-mode-1.png',
+  './assets/products/distributors/distributor-mode-2.png',
+  './assets/products/distributors/distributor-mode-3.png',
 ];
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
+});
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));

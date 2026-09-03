@@ -24,13 +24,13 @@ export function createPhaserRenderer({ parent, world, products, resourceTypes, g
   const textureSources = new Map([
     ...products.filter((item) => item.image).map((item) => [`product:${item.id}`, item.image]),
     ...resourceTypes.filter((item) => item.image).map((item) => [`resource:${item.id}`, item.image]),
-    ['product:filter-mode-1', 'assets/products/filters/filter-mode-1.svg'],
-    ['product:filter-mode-2', 'assets/products/filters/filter-mode-2.svg'],
-    ['product:filter-mode-3', 'assets/products/filters/filter-mode-3.svg'],
-    ['product:distributor-mode-1', 'assets/products/distributors/distributor-mode-1.svg'],
-    ['product:distributor-mode-2', 'assets/products/distributors/distributor-mode-2.svg'],
-    ['product:distributor-mode-3', 'assets/products/distributors/distributor-mode-3.svg'],
-    ['product:conveyor', 'assets/products/conveyor.svg'],
+    ['product:filter-mode-1', 'assets/products/filters/filter-mode-1.png'],
+    ['product:filter-mode-2', 'assets/products/filters/filter-mode-2.png'],
+    ['product:filter-mode-3', 'assets/products/filters/filter-mode-3.png'],
+    ['product:distributor-mode-1', 'assets/products/distributors/distributor-mode-1.png'],
+    ['product:distributor-mode-2', 'assets/products/distributors/distributor-mode-2.png'],
+    ['product:distributor-mode-3', 'assets/products/distributors/distributor-mode-3.png'],
+    ['product:conveyor', 'assets/products/conveyor.png'],
   ]);
   const sprites = new Map();
   const resourceFrames = new Map();

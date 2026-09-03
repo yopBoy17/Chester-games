@@ -239,10 +239,10 @@ world.append(cellPreview);
 
 const products = [
   { id: 'drill', name: 'Бур', price: productPrices.drill, color: '#7194ae', image: 'assets/products/drill.png', footprint: { width: 1, height: 1 }, defaultRotation: 180, description: 'Добывает базовую руду.' },
-  { id: 'conveyor', name: 'Конвейер', price: productPrices.conveyor, color: '#77838d', image: 'assets/products/conveyor-straight.png', description: 'Перевозит предметы между машинами.' },
+  { id: 'conveyor', name: 'Конвейер', price: productPrices.conveyor, color: '#77838d', image: 'assets/products/conveyor.png', description: 'Перевозит предметы между машинами.' },
   { id: 'generator', name: 'Генератор', price: productPrices.generator, color: '#d2a244', image: 'assets/products/generator.png', description: 'Создаёт энергию для фабрики.' },
-  { id: 'distributor', name: 'Распределитель', price: productPrices.distributor, color: '#87929a', image: 'assets/products/distributors/distributor-mode-1.svg', description: 'Делит поток между цветными выходами.' },
-  { id: 'filter', name: 'Фильтр', price: productPrices.filter, color: '#f4f5f6', image: 'assets/products/filters/filter-mode-1.svg', description: 'Разделяет ресурсы на два выхода.' },
+  { id: 'distributor', name: 'Распределитель', price: productPrices.distributor, color: '#87929a', image: 'assets/products/distributors/distributor-mode-1.png', description: 'Делит поток между цветными выходами.' },
+  { id: 'filter', name: 'Фильтр', price: productPrices.filter, color: '#f4f5f6', image: 'assets/products/filters/filter-mode-1.png', description: 'Разделяет ресурсы на два выхода.' },
   { id: 'warehouse', name: 'Склад', price: productPrices.warehouse, color: '#a88054', image: 'assets/products/warehouse.png', description: 'Хранит готовую продукцию.' },
   { id: 'furnace', name: 'Печь', price: productPrices.furnace, color: '#e18550', image: 'assets/products/furnace.png', description: 'Переплавляет руду в слитки.' },
   { id: 'crusher', name: 'Дробилка', price: productPrices.crusher, color: '#c45e64', image: 'assets/products/crusher.png', description: 'Измельчает сырьё для обработки.' },

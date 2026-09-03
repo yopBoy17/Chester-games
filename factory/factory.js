@@ -263,6 +263,7 @@ const phaserRenderer = createPhaserRenderer({
   getBuildings: () => new Map([...buildings, ...draftBuildings]),
   getMovingResources: () => movingResources,
   getCamera: () => camera,
+  isCameraMoving: () => Boolean(pointerStart || pinchStart),
   onReady: () => gameLoader.classList.add('is-hidden'),
 });
 world.classList.add('is-phaser-backed');
@@ -2021,9 +2022,15 @@ function keepCameraInBounds() {
   camera.y = Math.min(maxY, Math.max(-maxY, camera.y));
 }
 
+let cameraRenderFrame = 0;
+
 function renderCamera() {
   keepCameraInBounds();
-  world.style.transform = `translate(-50%, -50%) translate(${camera.x}px, ${camera.y}px) scale(${camera.scale})`;
+  if (cameraRenderFrame) return;
+  cameraRenderFrame = window.requestAnimationFrame(() => {
+    cameraRenderFrame = 0;
+    world.style.transform = `translate(-50%, -50%) translate(${camera.x}px, ${camera.y}px) scale(${camera.scale})`;
+  });
 }
 
 map.addEventListener('pointerdown', (event) => {

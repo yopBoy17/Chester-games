@@ -17,7 +17,7 @@ function resourcePosition(resource, world, mapSize) {
   };
 }
 
-export function createPhaserRenderer({ parent, world, products, resourceTypes, getBuildings, getMovingResources, getCamera, onReady }) {
+export function createPhaserRenderer({ parent, world, products, resourceTypes, getBuildings, getMovingResources, getCamera, isCameraMoving, onReady }) {
   const performancePreview = isPerformancePreview();
   const mapSize = performancePreview ? FACTORY_CONFIG.performanceMapSize : FACTORY_CONFIG.mapSize;
   const worldSize = mapSize * FACTORY_CONFIG.cellSize;
@@ -38,6 +38,7 @@ export function createPhaserRenderer({ parent, world, products, resourceTypes, g
   let nextResourceKey = 1;
   let placementPreview = null;
   let scene;
+  let lastMovingSceneSync = 0;
 
   const game = new window.Phaser.Game({
     type: window.Phaser.AUTO,
@@ -100,8 +101,12 @@ export function createPhaserRenderer({ parent, world, products, resourceTypes, g
         }
         onReady?.();
       },
-      update() {
-        if (scene) syncScene();
+      update(time) {
+        if (!scene) return;
+        syncCamera();
+        if (isCameraMoving?.() && time - lastMovingSceneSync < 100) return;
+        lastMovingSceneSync = time;
+        syncScene(false);
       },
     },
   });
@@ -132,7 +137,17 @@ export function createPhaserRenderer({ parent, world, products, resourceTypes, g
     sprite.setTint(tint ?? 0xffffff);
   }
 
-  function syncScene() {
+  function syncCamera() {
+    if (!scene) return;
+    const camera = getCamera();
+    scene.cameras.main.setZoom(camera.scale);
+    scene.cameras.main.centerOn(
+      worldSize / 2 - camera.x / camera.scale,
+      worldSize / 2 - camera.y / camera.scale,
+    );
+  }
+
+  function syncScene(includeCamera = true) {
     if (!scene) return;
     const activeKeys = new Set();
     const cellSize = FACTORY_CONFIG.cellSize;
@@ -234,12 +249,7 @@ export function createPhaserRenderer({ parent, world, products, resourceTypes, g
       }
     });
 
-    const camera = getCamera();
-    scene.cameras.main.setZoom(camera.scale);
-    scene.cameras.main.centerOn(
-      worldSize / 2 - camera.x / camera.scale,
-      worldSize / 2 - camera.y / camera.scale,
-    );
+    if (includeCamera) syncCamera();
   }
 
   const resizeObserver = new ResizeObserver(() => {

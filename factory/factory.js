@@ -2157,7 +2157,35 @@ function handleMapPointerMove(event) {
   updatePlacementPreview(pointerEvent);
 }
 
-map.addEventListener('pointermove', handleMapPointerMove, { passive: false });
+function handleMapTouchMove(event) {
+  event.preventDefault();
+  if (pinchStart && event.touches.length >= 2) {
+    const [first, second] = event.touches;
+    const distance = Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
+    camera.scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinchStart.scale * (distance / Math.max(1, pinchStart.distance))));
+    cameraScaleWasAdjusted = true;
+    renderCamera();
+    return;
+  }
+
+  const touch = event.touches[0];
+  if (!touch || !pointerStart) return;
+  camera.x += touch.clientX - pointerStart.lastX;
+  camera.y += touch.clientY - pointerStart.lastY;
+  pointerStart.lastX = touch.clientX;
+  pointerStart.lastY = touch.clientY;
+  renderCamera();
+  updatePlacementPreview(touch);
+}
+
+const useAndroidStandaloneTouch = /Android/i.test(navigator.userAgent)
+  && window.matchMedia('(display-mode: standalone)').matches;
+
+if (useAndroidStandaloneTouch) {
+  map.addEventListener('touchmove', handleMapTouchMove, { passive: false });
+} else {
+  map.addEventListener('pointermove', handleMapPointerMove, { passive: false });
+}
 
 map.addEventListener('pointerleave', () => {
   if (!movingBuilding) hidePlacementPreview();

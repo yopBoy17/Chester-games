@@ -1,15 +1,15 @@
 {
   "id": "./",
-  "name": "Planet Flow",
-  "short_name": "Planet Flow",
-  "description": "Стратегия о потоках энергии между планетами.",
+  "name": "Угадай карточку",
+  "short_name": "Карточки",
+  "description": "Игра для двух игроков — угадайте тайную карточку соперника",
   "lang": "ru",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f8fafc",
-  "theme_color": "#3478f6",
   "orientation": "any",
+  "background_color": "#f4f7fb",
+  "theme_color": "#397cf2",
   "icons": [
     {
       "src": "icons/icon-192.png",

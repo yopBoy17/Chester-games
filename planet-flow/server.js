@@ -14,6 +14,8 @@ const PUBLIC_FILES = new Map([
   ["/manifest.webmanifest", ["manifest.webmanifest", "application/manifest+json; charset=utf-8"]],
   ["/sw.js", ["sw.js", "text/javascript; charset=utf-8"]],
   ["/icon.svg", ["icon.svg", "image/svg+xml"]],
+  ["/icons/icon-192.png", ["icons/icon-192.png", "image/png"]],
+  ["/icons/icon-512.png", ["icons/icon-512.png", "image/png"]],
 ]);
 const rooms = new Map();
 

@@ -12,6 +12,10 @@ const files = {
   '/index.html': ['index.html', 'text/html; charset=utf-8'],
   '/styles.css': ['styles.css', 'text/css; charset=utf-8'],
   '/game.js': ['game.js', 'text/javascript; charset=utf-8'],
+  '/manifest.webmanifest': ['manifest.webmanifest', 'application/manifest+json; charset=utf-8'],
+  '/service-worker.js': ['service-worker.js', 'text/javascript; charset=utf-8'],
+  '/icons/icon-192.png': ['icons/icon-192.png', 'image/png'],
+  '/icons/icon-512.png': ['icons/icon-512.png', 'image/png'],
 };
 
 function send(socket, message) {

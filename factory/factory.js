@@ -133,6 +133,11 @@ let selectedMetalFormerRecipeType = null;
 let selectedRecipeMachine = null;
 let selectedRecipeMachineCategory = null;
 let selectedGenerator = null;
+
+function isCameraGestureActive() {
+  return Boolean(pointerStart || pinchStart);
+}
+
 let selectedFilter = null;
 let selectedFilterSlot = null;
 let filterPickerTab = 'all';
@@ -263,7 +268,7 @@ const phaserRenderer = createPhaserRenderer({
   getBuildings: () => new Map([...buildings, ...draftBuildings]),
   getMovingResources: () => movingResources,
   getCamera: () => camera,
-  isCameraMoving: () => Boolean(pointerStart || pinchStart),
+  isCameraMoving: isCameraGestureActive,
   onReady: () => gameLoader.classList.add('is-hidden'),
 });
 world.classList.add('is-phaser-backed');
@@ -925,6 +930,10 @@ function moveResourceTo(resource, cell, onArrival, stopAtEntry = false, entryOff
   };
   const startedAt = performance.now();
   const animate = (now) => {
+    if (isCameraGestureActive()) {
+      resource.animationFrame = window.requestAnimationFrame(animate);
+      return;
+    }
     const progress = Math.min(1, (now - startedAt) / duration);
     resource.renderPosition = {
       x: from.x + (to.x - from.x) * progress,
@@ -2256,14 +2265,18 @@ renderResources();
 renderShop();
 renderInventory();
 restoreServerGameState();
-window.setInterval(runDrills, 250);
-window.setInterval(runCrushers, 100);
-window.setInterval(runFurnaces, 100);
-window.setInterval(runPresses, 100);
-window.setInterval(runMetalFormers, 100);
-window.setInterval(runGenerators, 250);
-window.setInterval(energyController.updateStorage, 1_000);
-window.setInterval(() => saveGameState({ logServerSave: true }), 10_000);
+const runWhenCameraIdle = (callback) => () => {
+  if (!isCameraGestureActive()) callback();
+};
+
+window.setInterval(runWhenCameraIdle(runDrills), 250);
+window.setInterval(runWhenCameraIdle(runCrushers), 100);
+window.setInterval(runWhenCameraIdle(runFurnaces), 100);
+window.setInterval(runWhenCameraIdle(runPresses), 100);
+window.setInterval(runWhenCameraIdle(runMetalFormers), 100);
+window.setInterval(runWhenCameraIdle(runGenerators), 250);
+window.setInterval(runWhenCameraIdle(energyController.updateStorage), 1_000);
+window.setInterval(runWhenCameraIdle(() => saveGameState({ logServerSave: true })), 10_000);
 
 shopButton.addEventListener('click', () => {
   setShopOpen(!shopPopover.classList.contains('is-open'));

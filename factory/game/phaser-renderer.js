@@ -38,7 +38,6 @@ export function createPhaserRenderer({ parent, world, products, resourceTypes, g
   let nextResourceKey = 1;
   let placementPreview = null;
   let scene;
-  let lastMovingSceneSync = 0;
 
   const game = new window.Phaser.Game({
     type: window.Phaser.AUTO,
@@ -101,11 +100,10 @@ export function createPhaserRenderer({ parent, world, products, resourceTypes, g
         }
         onReady?.();
       },
-      update(time) {
+      update() {
         if (!scene) return;
         syncCamera();
-        if (isCameraMoving?.() && time - lastMovingSceneSync < 100) return;
-        lastMovingSceneSync = time;
+        if (isCameraMoving?.()) return;
         syncScene(false);
       },
     },

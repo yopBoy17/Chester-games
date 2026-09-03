@@ -2157,8 +2157,7 @@ function handleMapPointerMove(event) {
   updatePlacementPreview(pointerEvent);
 }
 
-const mapPointerMoveEvent = 'onpointerrawupdate' in window ? 'pointerrawupdate' : 'pointermove';
-map.addEventListener(mapPointerMoveEvent, handleMapPointerMove, { passive: false });
+map.addEventListener('pointermove', handleMapPointerMove, { passive: false });
 
 map.addEventListener('pointerleave', () => {
   if (!movingBuilding) hidePlacementPreview();

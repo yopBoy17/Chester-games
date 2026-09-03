@@ -1244,6 +1244,7 @@ body.is-phaser-enabled .build-preview { display: none !important; }
     top: 54px;
     right: 10px;
     bottom: auto;
+    max-height: calc(100dvh - 72px);
     transform: scale(.86);
     transform-origin: right top;
   }
@@ -1251,6 +1252,7 @@ body.is-phaser-enabled .build-preview { display: none !important; }
   .shop-popover {
     top: 54px;
     bottom: auto;
+    max-height: calc(100dvh - 72px);
     transform: translate(-50%, -12px) scale(.86);
     transform-origin: center top;
   }

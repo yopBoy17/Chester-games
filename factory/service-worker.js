@@ -1,4 +1,4 @@
-const CACHE_NAME = 'factory-pwa-v7';
+const CACHE_NAME = 'factory-pwa-v9';
 const APP_SHELL = [
   './',
   './index.html',
@@ -51,6 +51,7 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
+  if (url.pathname.endsWith('/version.json')) return;
 
   if (request.mode === 'navigate') {
     event.respondWith(fetch(request).catch(() => caches.match('./index.html')));

@@ -1214,11 +1214,47 @@ body.is-phaser-enabled .build-preview { display: none !important; }
 
 }
 
-@media (max-height: 600px) {
-  .factory-app { padding: 66px 0; }
+@media (max-height: 600px) and (orientation: landscape) {
+  .factory-app {
+    width: min(calc(96vw - 20px), 940px);
+    padding: 48px 0;
+  }
+
+  .toolbar {
+    height: 48px;
+    padding: 0 12px;
+  }
+
+  .resource-group { gap: 14px; }
+  .resource-group--economy { margin-left: auto; }
+  .resource { font-size: 1rem; }
+  .resource-icon { width: 21px; height: 21px; }
+  .resource-icon--dollar { font-size: 1.35rem; }
+
+  .bottom-panel { height: 48px; }
+  .action-button { width: 36px; height: 36px; border-radius: 8px; }
+  .action-icon { width: 22px; height: 22px; }
+
   .map {
-    min-height: calc(100vh - 132px);
-    min-height: calc(100dvh - 132px);
+    min-height: calc(100vh - 96px);
+    min-height: calc(100dvh - 96px);
+  }
+
+  .inventory-popover {
+    right: 10px;
+    bottom: 54px;
+    transform: scale(.86);
+    transform-origin: right bottom;
+  }
+
+  .shop-popover {
+    bottom: 54px;
+    transform: translate(-50%, 12px) scale(.86);
+    transform-origin: center bottom;
+  }
+
+  .shop-popover.is-open {
+    transform: translate(-50%, 0) scale(.86);
   }
 }
 .game-loader { position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; gap: 8px; background: #f7f9fb; color: #263546; text-align: center; transition: opacity .22s ease, visibility .22s ease; }

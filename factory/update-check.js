@@ -1,5 +1,5 @@
 (() => {
-  const CLIENT_VERSION = '2026.09.03.3';
+  const CLIENT_VERSION = '2026.09.03.4';
   const CHECK_INTERVAL_MS = 60_000;
   let updateAvailable = false;
   let reloading = false;

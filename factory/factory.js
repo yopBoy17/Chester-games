@@ -2121,13 +2121,23 @@ map.addEventListener('pointerdown', (event) => {
   closeMetalFormerMenu();
   closeRecipeMachineMenu();
   closeGeneratorMenu();
-  pointerStart = { x: event.clientX, y: event.clientY, cameraX: camera.x, cameraY: camera.y };
+  pointerStart = {
+    x: event.clientX,
+    y: event.clientY,
+    lastX: event.clientX,
+    lastY: event.clientY,
+  };
   map.classList.add('is-panning');
 });
 
-map.addEventListener('pointermove', (event) => {
+function handleMapPointerMove(event) {
+  if (event.cancelable) event.preventDefault();
+  const coalescedEvents = event.getCoalescedEvents?.();
+  const pointerEvent = coalescedEvents?.length
+    ? coalescedEvents[coalescedEvents.length - 1]
+    : event;
   if (activePointers.has(event.pointerId)) {
-    activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    activePointers.set(event.pointerId, { x: pointerEvent.clientX, y: pointerEvent.clientY });
   }
   if (pinchStart && activePointers.size >= 2) {
     const [first, second] = [...activePointers.values()];
@@ -2138,12 +2148,17 @@ map.addEventListener('pointermove', (event) => {
     return;
   }
   if (pointerStart) {
-    camera.x = pointerStart.cameraX + event.clientX - pointerStart.x;
-    camera.y = pointerStart.cameraY + event.clientY - pointerStart.y;
+    camera.x += pointerEvent.clientX - pointerStart.lastX;
+    camera.y += pointerEvent.clientY - pointerStart.lastY;
+    pointerStart.lastX = pointerEvent.clientX;
+    pointerStart.lastY = pointerEvent.clientY;
     renderCamera();
   }
-  updatePlacementPreview(event);
-});
+  updatePlacementPreview(pointerEvent);
+}
+
+const mapPointerMoveEvent = 'onpointerrawupdate' in window ? 'pointerrawupdate' : 'pointermove';
+map.addEventListener(mapPointerMoveEvent, handleMapPointerMove, { passive: false });
 
 map.addEventListener('pointerleave', () => {
   if (!movingBuilding) hidePlacementPreview();

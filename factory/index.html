@@ -3,7 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#263341" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Factory" />
     <title>Factory</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="assets/icons/icon-192.png" type="image/png" />
+    <link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -246,5 +254,10 @@
 
     <script src="node_modules/phaser/dist/phaser.min.js"></script>
     <script type="module" src="factory.js"></script>
+    <script>
+      if ('serviceWorker' in navigator && window.isSecureContext) {
+        window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(() => {}));
+      }
+    </script>
   </body>
 </html>
